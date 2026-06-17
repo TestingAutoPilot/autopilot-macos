@@ -21,10 +21,38 @@ public struct PlanParser {
         return resolved
     }
 
-    /// Resolve includes — real implementation lands in Task 4. For now, no includes.
+    /// Resolve `include` references by prepending included steps in order.
+    /// `stack` holds canonical paths of plans currently being resolved (cycle detection).
+    /// Host plan's target/defaults win; included steps are prepended before host steps.
     func resolveIncludes(_ plan: Plan, baseDirectory: URL,
                          stack: [String], depth: Int) throws -> Plan {
-        return plan
+        guard let includes = plan.include, !includes.isEmpty else { return plan }
+        if depth >= Self.maxIncludeDepth { throw PlanError.includeTooDeep(maxDepth: Self.maxIncludeDepth) }
+
+        var prependedSteps: [Step] = []
+        for rel in includes {
+            let url = baseDirectory.appendingPathComponent(rel)
+            let canonical = url.standardizedFileURL.path
+            if stack.contains(canonical) { throw PlanError.includeCycle(path: canonical) }
+            guard FileManager.default.fileExists(atPath: canonical) else {
+                throw PlanError.includeNotFound(path: rel)
+            }
+            let data: Data
+            do { data = try Data(contentsOf: url) }
+            catch { throw PlanError.includeNotFound(path: rel) }
+            let child: Plan
+            do { child = try JSONDecoder().decode(Plan.self, from: data) }
+            catch { throw PlanError.decode("in included \(rel): \(error)") }
+            let resolvedChild = try resolveIncludes(
+                child, baseDirectory: url.deletingLastPathComponent(),
+                stack: stack + [canonical], depth: depth + 1)
+            prependedSteps.append(contentsOf: resolvedChild.steps)
+        }
+
+        var flattened = plan
+        flattened.steps = prependedSteps + plan.steps
+        flattened.include = nil
+        return flattened
     }
 
     func validate(_ plan: Plan) throws {
