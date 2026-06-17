@@ -17,6 +17,17 @@ import ApplicationServices
             .appendingPathComponent("Fixtures/TestHostApp/.build/TestHostApp.app")
     }
 
+    /// Terminate any running TestHostApp instances (best-effort) so the test
+    /// is hermetic regardless of leaked processes from earlier runs.
+    func killExistingTestHostApps() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        p.arguments = ["-f", "TestHostApp.app"]
+        try? p.run()
+        p.waitUntilExit()
+        Thread.sleep(forTimeInterval: 0.4)
+    }
+
     @Test func typeUpdatesStatusLabel() async throws {
         guard AXIsProcessTrusted() else {
             // Skip when no AX permission; do not fail CI.
@@ -27,6 +38,12 @@ import ApplicationServices
             Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
             return
         }
+
+        // Hermetic precondition: kill any leftover TestHostApp instances so a
+        // leaked process from a prior run cannot poison element resolution
+        // (the resolver would otherwise walk a different instance's tree).
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
 
         let artifacts = FileManager.default.temporaryDirectory
             .appendingPathComponent("autopilot-it-\(UUID().uuidString)")
