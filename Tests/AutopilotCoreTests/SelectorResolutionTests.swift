@@ -28,3 +28,22 @@ import Foundation
         #expect(!AXResolver.matches(node: node, selector: Selector()))
     }
 }
+
+@Suite struct KeyChordParseTests {
+    @Test func parsesCmdS() throws {
+        let chord = try ActionEngine.parseChord("cmd+s")
+        #expect(chord.flags.contains(.maskCommand))
+        #expect(chord.virtualKey == 1) // ANSI 's'
+    }
+
+    @Test func parsesShiftCmdLeftLetter() throws {
+        let chord = try ActionEngine.parseChord("shift+cmd+a")
+        #expect(chord.flags.contains(.maskShift))
+        #expect(chord.flags.contains(.maskCommand))
+        #expect(chord.virtualKey == 0) // ANSI 'a'
+    }
+
+    @Test func unknownKeyThrows() {
+        #expect(throws: Error.self) { _ = try ActionEngine.parseChord("cmd+£") }
+    }
+}
