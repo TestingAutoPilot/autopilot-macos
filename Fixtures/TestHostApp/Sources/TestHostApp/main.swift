@@ -36,6 +36,38 @@ final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate 
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        installMenu()
+    }
+
+    // A "View" menu with a checkable "Toggle Flag" item (no key equivalent), so
+    // GUI tests can exercise the `menu` action and read the checkmark state.
+    var flagOn = false
+    let flagItem = NSMenuItem(title: "Toggle Flag", action: #selector(toggleFlag), keyEquivalent: "")
+
+    func installMenu() {
+        let mainMenu = NSMenu()
+
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenuItem.submenu = appMenu
+
+        let viewItem = NSMenuItem()
+        mainMenu.addItem(viewItem)
+        let viewMenu = NSMenu(title: "View")
+        flagItem.target = self
+        viewMenu.addItem(flagItem)
+        viewItem.submenu = viewMenu
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    @objc func toggleFlag() {
+        flagOn.toggle()
+        flagItem.state = flagOn ? .on : .off
+        statusLabel.stringValue = "status: flag=\(flagOn)"
     }
 
     @objc func nameChanged() {

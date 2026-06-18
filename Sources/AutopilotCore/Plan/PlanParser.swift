@@ -72,7 +72,8 @@ public struct PlanParser {
     }
 
     private static let targetRequiringActions: Set<Action> = [
-        .click, .doubleClick, .rightClick, .type, .keyPress, .setValue, .scroll, .waitFor, .assert
+        .click, .doubleClick, .rightClick, .press, .type, .keyPress, .setValue,
+        .scroll, .drag, .waitFor, .assert
     ]
 
     func validateStep(_ step: Step) throws {
@@ -95,6 +96,14 @@ public struct PlanParser {
         case .wait:
             if step.args?.seconds == nil {
                 throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "seconds")
+            }
+        case .menu:
+            if step.args?.menuPath?.isEmpty ?? true {
+                throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "menuPath")
+            }
+        case .drag:
+            if step.args?.to == nil {
+                throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "to")
             }
         default:
             break

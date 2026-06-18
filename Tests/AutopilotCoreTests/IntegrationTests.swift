@@ -3,7 +3,10 @@ import Foundation
 import ApplicationServices
 @testable import AutopilotCore
 
-@Suite struct IntegrationTests {
+// Serialized: these drive the live GUI and share global frontmost-app state.
+// Running them in parallel launches multiple TestHostApp instances at once,
+// so input/assertions land on the wrong instance.
+@Suite(.serialized) struct IntegrationTests {
     /// Path to the built TestHostApp .app bundle. A bare Mach-O does not launch
     /// as a foreground GUI app with its own Accessibility tree, so the fixture is
     /// assembled into a real .app bundle by `Fixtures/TestHostApp/make-app.sh`.
@@ -65,6 +68,37 @@ import ApplicationServices
         )
         let runner = PlanRunner()
         let report = try runner.run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    @Test func menuActionInvokesNoShortcutItem() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else {
+            Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
+            return
+        }
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-menu-\(UUID().uuidString)")
+        let plan = Plan(
+            schemaVersion: "1.0",
+            name: "host: menu toggles flag",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                // "Toggle Flag" has no key equivalent — only reachable via the menu.
+                Step(id: "menu-toggle", action: .menu,
+                     args: { var a = ActionArgs(); a.menuPath = ["View", "Toggle Flag"]; return a }()),
+                Step(id: "assert-flag", action: .assert,
+                     target: Selector(identifier: "statusLabel"),
+                     assert: Assertion(property: .value, op: .contains, expected: "flag=true")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner().run(plan, options: RunOptions(artifactsDir: artifacts))
         #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
     }
 }

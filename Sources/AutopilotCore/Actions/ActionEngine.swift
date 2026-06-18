@@ -39,8 +39,8 @@ public struct ActionEngine {
         throw PlanError.decode("unknown key: \(keyToken)")
     }
 
-    /// Center point of an ElementRef for click/type targeting.
-    func point(for ref: ElementRef) -> CGPoint? {
+    /// Center point of an ElementRef for click/type/drag targeting.
+    public func point(for ref: ElementRef) -> CGPoint? {
         switch ref {
         case .point(let p): return p
         case .ax(let el):
@@ -62,6 +62,9 @@ public struct ActionEngine {
         case .rightClick:
             guard let ref, let p = point(for: ref) else { throw PlanError.decode("rightClick needs a point") }
             EventSynthesizer.click(at: p, rightButton: true)
+        case .press:
+            guard case .ax(let el)? = ref else { throw PlanError.decode("press needs an AX element") }
+            if !AXTree.press(el) { throw PlanError.decode("AX press action failed") }
         case .type:
             guard let text = args?.text else { throw PlanError.decode("type needs text") }
             if let ref, let p = point(for: ref) { EventSynthesizer.click(at: p) } // focus first
@@ -75,7 +78,7 @@ public struct ActionEngine {
             EventSynthesizer.keyChord(virtualKey: chord.virtualKey, flags: chord.flags)
         case .scroll:
             EventSynthesizer.scroll(dx: Int32(args?.deltaX ?? 0), dy: Int32(args?.deltaY ?? 0))
-        case .launch, .terminate, .waitFor, .screenshot, .assert, .wait:
+        case .launch, .terminate, .waitFor, .screenshot, .assert, .wait, .menu, .drag:
             break // handled by PlanRunner, not here
         }
     }

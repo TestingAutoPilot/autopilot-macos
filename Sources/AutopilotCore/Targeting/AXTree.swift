@@ -46,6 +46,20 @@ public enum AXTree {
         AXUIElementCreateApplication(pid)
     }
 
+    /// Perform the AX press action on an element (buttons, menu items, etc.).
+    /// More robust than a coordinate click and works for elements that have no
+    /// stable on-screen frame (e.g. items in a closed menu). Returns success.
+    @discardableResult
+    public static func press(_ element: AXUIElement) -> Bool {
+        AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
+    }
+
+    /// Read the menu-item mark character (e.g. a checkmark) if present.
+    /// Menu state is otherwise not observable; this is the one readable signal.
+    public static func menuMarkChar(_ element: AXUIElement) -> String? {
+        string(element, kAXMenuItemMarkCharAttribute as String)
+    }
+
     /// Depth-first pre-order walk, invoking `visit` on every descendant
     /// (including `root`). Bounded by `maxNodes` as a runaway guard.
     public static func walk(_ root: AXUIElement, maxNodes: Int = 5000,

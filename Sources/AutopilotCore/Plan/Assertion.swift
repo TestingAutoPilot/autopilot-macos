@@ -2,6 +2,7 @@ import Foundation
 
 public enum AssertProperty: String, Codable, Sendable {
     case value, title, enabled, focused, position, size, exists
+    case marked   // menu-item checkmark state: "true"/"false" from AXMenuItemMarkChar
 }
 
 public enum AssertOp: String, Codable, Sendable {

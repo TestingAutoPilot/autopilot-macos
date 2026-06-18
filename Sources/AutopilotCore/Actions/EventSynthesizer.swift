@@ -41,6 +41,26 @@ public enum EventSynthesizer {
         up?.post(tap: .cghidEventTap)
     }
 
+    /// Drag from `from` to `to`: mouse-down, intermediate moves (so apps that
+    /// track drag distance register it), then mouse-up at the destination.
+    public static func drag(from: CGPoint, to: CGPoint, steps: Int = 10) {
+        let down = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
+                           mouseCursorPosition: from, mouseButton: .left)
+        down?.post(tap: .cghidEventTap)
+        let n = max(1, steps)
+        for i in 1...n {
+            let t = Double(i) / Double(n)
+            let p = CGPoint(x: from.x + (to.x - from.x) * t,
+                            y: from.y + (to.y - from.y) * t)
+            let move = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged,
+                               mouseCursorPosition: p, mouseButton: .left)
+            move?.post(tap: .cghidEventTap)
+        }
+        let up = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
+                         mouseCursorPosition: to, mouseButton: .left)
+        up?.post(tap: .cghidEventTap)
+    }
+
     public static func scroll(dx: Int32, dy: Int32) {
         let e = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0)
         e?.post(tap: .cghidEventTap)

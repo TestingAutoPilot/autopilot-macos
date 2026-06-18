@@ -99,7 +99,24 @@ public struct PlanRunner {
         case .assert:
             return try runAssert(step, app: app, targeting: targeting,
                                  timeoutMs: timeoutMs, intervalMs: intervalMs, options: options)
-        case .click, .doubleClick, .rightClick, .type, .keyPress, .setValue, .scroll:
+        case .menu:
+            guard let path = step.args?.menuPath, !path.isEmpty else {
+                throw PlanError.decode("menu needs args.menuPath")
+            }
+            try MenuNavigator().selectPath(path, app: app)
+            return StepResult(id: step.id, result: .pass, durationMs: 0)
+        case .drag:
+            let ref = try targeting.resolve(step.target!, app: app,
+                                            timeoutMs: timeoutMs, intervalMs: intervalMs)
+            guard let dest = step.args?.to else { throw PlanError.decode("drag needs args.to") }
+            let destRef = try targeting.resolve(dest, app: app,
+                                                timeoutMs: timeoutMs, intervalMs: intervalMs)
+            guard let from = actions.point(for: ref), let to = actions.point(for: destRef) else {
+                throw PlanError.decode("drag needs resolvable source and destination points")
+            }
+            EventSynthesizer.drag(from: from, to: to)
+            return StepResult(id: step.id, result: .pass, durationMs: 0)
+        case .click, .doubleClick, .rightClick, .press, .type, .keyPress, .setValue, .scroll:
             let ref = try targeting.resolve(step.target!, app: app,
                                             timeoutMs: timeoutMs, intervalMs: intervalMs)
             try actions.perform(action: step.action, args: step.args, ref: ref)
