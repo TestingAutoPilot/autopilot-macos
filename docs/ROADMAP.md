@@ -41,12 +41,15 @@ At medit's current 20 plans this is already the dominant wall-clock cost.
 
 | # | Item | Why | Effort | Risk |
 |---|---|---|---|---|
-| A1 | **Async core** — convert launch + poll to async/await (`NSWorkspace.openApplication` has an async form; replace `Thread.sleep` with an async sleep; keep the `Clock` abstraction for deterministic tests) | Unblocks everything below; removes thread-blocking | **L** | Med — touches the hot path; needs careful test port |
+| A1 | **Parallelism via process isolation** (chosen over an in-process async rewrite) — the suite runner spawns each plan as its own `autopilot run` child process. Each plan already launches its own app instance, so separate OS processes give true isolation + concurrency without churning the well-tested synchronous core. A full async/await port was considered and rejected as high-risk for equal benefit | Unblocks A3 with far less risk than rewriting the hot path | **M** | Low — no change to the core execution path |
 | A2 | **Suite runner** — `autopilot run <dir>/` runs every `*.json` plan, each in its own per-plan artifact dir, with one **aggregate report** (`SUITE 18/20 passed`, per-plan rollup JSON) | Consumers stop hand-scripting loops; one exit code for CI | **M** | Low |
-| A3 | **`--parallel N`** — run N plans concurrently against N app instances; cap by cores | Big wall-clock win for large suites | **M** (after A1) | Med — instance isolation, AX-tree cross-talk; must verify each plan still hits its own instance |
-| A4 | **Per-run isolation guard** — ensure a plan only ever drives the instance it launched (track pid; scope AX queries to it), so parallel runs can't cross-talk | Correctness prerequisite for A3; also fixes the latent "leaked instance poisons resolution" class we hit in tests | **S–M** | Low |
+| A3 | **`--parallel N` — NOT soundly achievable for input-driving plans, and intentionally not built.** macOS has a single keyboard/mouse focus and one frontmost app; two plans synthesizing `click`/`type`/`menu` at once fight over focus and fail intermittently. The suite runner therefore runs plans **sequentially**. (A future option: a `--parallel` mode restricted to *assert-only* plans, which take no input — deferred until there's a real need.) | n/a | — |
+| A4 | **Per-run isolation** — already satisfied: `AXUIElementCreateApplication(pid)` scopes every AX query to the launched instance, so in-process resolution can't cross-talk. The suite runner additionally terminates each plan's app before the next starts | Correctness; also addresses the "leaked instance poisons resolution" class | **done/S** | Low |
 
-**Order:** A1 → A4 → A2 → A3. A1 is the gate; A2 delivers value even before A3.
+**Decision:** the value of Milestone A is the **suite runner (A2)**, not parallelism.
+A2 delivers the real win (one command, one aggregate report, hygienic per-plan
+isolation). True input-parallelism is unsound on one machine and is documented as
+such rather than shipped flaky.
 
 ---
 
