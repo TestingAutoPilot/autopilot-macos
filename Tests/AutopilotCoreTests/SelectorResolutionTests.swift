@@ -76,6 +76,20 @@ import Foundation
     }
 }
 
+@Suite struct VisionPathTests {
+    @Test func absolutePathUsedAsIs() {
+        #expect(Targeting.resolveImagePath("/tmp/x.png", baseDir: URL(fileURLWithPath: "/plans"))
+                == "/tmp/x.png")
+    }
+    @Test func relativePathResolvesAgainstPlanDir() {
+        #expect(Targeting.resolveImagePath("templates/icon.png", baseDir: URL(fileURLWithPath: "/plans/sub"))
+                == "/plans/sub/templates/icon.png")
+    }
+    @Test func relativeWithNoBaseStaysRelative() {
+        #expect(Targeting.resolveImagePath("icon.png", baseDir: nil) == "icon.png")
+    }
+}
+
 @Suite struct VisionMatchTests {
     /// A 4x4 needle with internal structure (a 2x2 bright block in the top-left
     /// quadrant). NCC is undefined for a uniform template, so the pattern must

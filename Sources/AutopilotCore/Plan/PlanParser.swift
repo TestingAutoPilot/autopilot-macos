@@ -35,7 +35,9 @@ public struct PlanParser {
             let canonical = url.standardizedFileURL.path
             if stack.contains(canonical) { throw PlanError.includeCycle(path: canonical) }
             guard FileManager.default.fileExists(atPath: canonical) else {
-                throw PlanError.includeNotFound(path: rel)
+                // Show both the declared string and what it resolved to on disk,
+                // so the "relative to the plan file" rule is obvious from the error.
+                throw PlanError.includeNotFound(path: "\(rel) (resolved to \(canonical))")
             }
             let data: Data
             do { data = try Data(contentsOf: url) }

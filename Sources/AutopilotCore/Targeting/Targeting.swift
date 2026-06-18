@@ -10,8 +10,10 @@ public struct Targeting {
     public init(poller: Poller = Poller()) { self.poller = poller }
 
     /// Resolve a selector to exactly one element, polling until available or timeout.
+    /// `baseDir`, when set, is the directory of the plan file; `vision.image`
+    /// paths are resolved relative to it (matching `include` semantics).
     public func resolve(_ selector: Selector, app: AXUIElement,
-                        timeoutMs: Int, intervalMs: Int) throws -> ElementRef {
+                        timeoutMs: Int, intervalMs: Int, baseDir: URL? = nil) throws -> ElementRef {
         var lastError: Error = TargetingError.timedOut(
             selector: AXResolver.describe(selector), timeoutMs: timeoutMs)
         let ok = poller.waitUntil(timeoutMs: timeoutMs, intervalMs: intervalMs) {
@@ -21,10 +23,11 @@ public struct Targeting {
         guard ok else {
             // Vision fallback: only if the selector carries a vision block.
             if let vision = selector.vision {
+                let imagePath = Self.resolveImagePath(vision.image, baseDir: baseDir)
                 let shotPath = NSTemporaryDirectory() + "autopilot-vision-\(UUID().uuidString).png"
                 guard Screenshot.captureMainDisplay(to: shotPath),
                       let haystack = VisionResolver.grayscaleBuffer(pngPath: shotPath),
-                      let needle = VisionResolver.grayscaleBuffer(pngPath: vision.image),
+                      let needle = VisionResolver.grayscaleBuffer(pngPath: imagePath),
                       let match = VisionResolver.bestMatch(haystack: haystack, needle: needle),
                       match.score >= vision.confidence
                 else { throw lastError }
@@ -36,6 +39,15 @@ public struct Targeting {
         }
         let el = try axResolver.resolveOne(in: app, selector: selector)
         return .ax(el)
+    }
+
+    /// Resolve a vision template path: absolute paths are used as-is; relative
+    /// paths resolve against the plan's directory (matching `include`), falling
+    /// back to the current working directory when no base is known.
+    static func resolveImagePath(_ image: String, baseDir: URL?) -> String {
+        if image.hasPrefix("/") { return image }
+        if let baseDir { return baseDir.appendingPathComponent(image).path }
+        return image
     }
 
     /// Wait for an element to be present (or absent). Returns whether the wait succeeded.

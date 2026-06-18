@@ -41,7 +41,8 @@ struct Run: ParsableCommand {
         }
 
         let artifactsURL = URL(fileURLWithPath: artifacts)
-        let report = try PlanRunner().run(plan, options: RunOptions(keepGoing: keepGoing, artifactsDir: artifactsURL))
+        let report = try PlanRunner().run(plan, options: RunOptions(
+            keepGoing: keepGoing, artifactsDir: artifactsURL, planBaseDir: baseDir))
         let reporter = Reporter()
         try reporter.write(report, to: artifactsURL)
 

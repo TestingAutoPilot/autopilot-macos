@@ -4,8 +4,11 @@ import ApplicationServices
 public struct RunOptions {
     public var keepGoing: Bool
     public var artifactsDir: URL
-    public init(keepGoing: Bool = false, artifactsDir: URL) {
+    /// Directory of the plan file, used to resolve relative vision-template paths.
+    public var planBaseDir: URL?
+    public init(keepGoing: Bool = false, artifactsDir: URL, planBaseDir: URL? = nil) {
         self.keepGoing = keepGoing; self.artifactsDir = artifactsDir
+        self.planBaseDir = planBaseDir
     }
 }
 
@@ -63,7 +66,12 @@ public struct PlanRunner {
                 let dump = writeAXDump(appElement, stepId: step.id, dir: options.artifactsDir)
                 let shot = options.artifactsDir.appendingPathComponent("\(step.id).png").path
                 Screenshot.captureMainDisplay(to: shot)
-                report.add(StepResult(id: step.id, result: .error, durationMs: dur,
+                // A targeting failure (element not found / ambiguous / timed out)
+                // means the app's UI wasn't as the plan expected — that's a test
+                // FAILURE. Everything else (launch failure, AX action failure,
+                // unsupported key) is an infrastructure ERROR.
+                let outcome: StepOutcome = (error is TargetingError) ? .fail : .error
+                report.add(StepResult(id: step.id, result: outcome, durationMs: dur,
                                       message: String(describing: error),
                                       screenshot: shot, axDump: dump))
                 if !options.keepGoing { break }
@@ -107,10 +115,12 @@ public struct PlanRunner {
             return StepResult(id: step.id, result: .pass, durationMs: 0)
         case .drag:
             let ref = try targeting.resolve(step.target!, app: app,
-                                            timeoutMs: timeoutMs, intervalMs: intervalMs)
+                                            timeoutMs: timeoutMs, intervalMs: intervalMs,
+                                            baseDir: options.planBaseDir)
             guard let dest = step.args?.to else { throw PlanError.decode("drag needs args.to") }
             let destRef = try targeting.resolve(dest, app: app,
-                                                timeoutMs: timeoutMs, intervalMs: intervalMs)
+                                                timeoutMs: timeoutMs, intervalMs: intervalMs,
+                                                baseDir: options.planBaseDir)
             guard let from = actions.point(for: ref), let to = actions.point(for: destRef) else {
                 throw PlanError.decode("drag needs resolvable source and destination points")
             }
@@ -118,7 +128,8 @@ public struct PlanRunner {
             return StepResult(id: step.id, result: .pass, durationMs: 0)
         case .click, .doubleClick, .rightClick, .press, .type, .keyPress, .setValue, .scroll:
             let ref = try targeting.resolve(step.target!, app: app,
-                                            timeoutMs: timeoutMs, intervalMs: intervalMs)
+                                            timeoutMs: timeoutMs, intervalMs: intervalMs,
+                                            baseDir: options.planBaseDir)
             try actions.perform(action: step.action, args: step.args, ref: ref)
             return StepResult(id: step.id, result: .pass, durationMs: 0)
         }
@@ -137,7 +148,8 @@ public struct PlanRunner {
                               actual: ok ? (present ? "exists" : "notExists") : (present ? "notExists" : "exists"))
         }
         guard case .ax(let el) = try targeting.resolve(step.target!, app: app,
-                                                       timeoutMs: timeoutMs, intervalMs: intervalMs) else {
+                                                       timeoutMs: timeoutMs, intervalMs: intervalMs,
+                                                       baseDir: options.planBaseDir) else {
             return StepResult(id: step.id, result: .fail, durationMs: 0,
                               message: "cannot assert property on vision-only element")
         }
