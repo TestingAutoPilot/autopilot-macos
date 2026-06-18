@@ -89,6 +89,9 @@ import ApplicationServices
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
+                Step(id: "wait-window", action: .waitFor,
+                     target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
                 // "Toggle Flag" has no key equivalent — only reachable via the menu.
                 Step(id: "menu-toggle", action: .menu,
                      args: { var a = ActionArgs(); a.menuPath = ["View", "Toggle Flag"]; return a }()),

@@ -95,7 +95,7 @@ public struct PlanRunner {
         report.artifactsDir = options.artifactsDir.path
         // Write report.json into the per-plan artifacts dir so it travels with
         // its screenshots/AX dumps and never clobbers another plan's report.
-        try? reporter.write(report, to: options.artifactsDir)
+        _ = try? reporter.write(report, to: options.artifactsDir)
         return report
     }
 
@@ -125,6 +125,9 @@ public struct PlanRunner {
         case .assert:
             return try runAssert(step, app: app, targeting: targeting,
                                  timeoutMs: timeoutMs, intervalMs: intervalMs, options: options)
+        case .assertPixel:
+            return try runAssertPixel(step, app: app, targeting: targeting,
+                                      timeoutMs: timeoutMs, intervalMs: intervalMs, options: options)
         case .menu:
             guard let path = step.args?.menuPath, !path.isEmpty else {
                 throw PlanError.decode("menu needs args.menuPath")
@@ -187,6 +190,51 @@ public struct PlanRunner {
             let shot = options.artifactsDir.appendingPathComponent("\(step.id).png").path
             Screenshot.captureMainDisplay(to: shot)
             result.axDump = dump; result.screenshot = shot
+        }
+        return result
+    }
+
+    /// Assert a screen pixel's color — for visual features the AX API can't see
+    /// (syntax colors, rainbow brackets, gutters). Samples at the target's center
+    /// plus (offsetX,offsetY), or an absolute (atX,atY) when no target is given.
+    private func runAssertPixel(_ step: Step, app: AXUIElement, targeting: Targeting,
+                                timeoutMs: Int, intervalMs: Int, options: RunOptions) throws -> StepResult {
+        let args = step.args
+        guard let hex = args?.color, let expected = PixelColor.parseHex(hex) else {
+            throw PlanError.decode("assertPixel needs args.color (#RRGGBB)")
+        }
+        let tolerance = args?.tolerance ?? 16
+
+        // Determine the sample point.
+        let point: CGPoint
+        if let ax = step.target {
+            let ref = try targeting.resolve(ax, app: app, timeoutMs: timeoutMs,
+                                            intervalMs: intervalMs, baseDir: options.planBaseDir)
+            guard let center = actions.point(for: ref) else {
+                throw PlanError.decode("assertPixel target has no resolvable point")
+            }
+            point = CGPoint(x: center.x + CGFloat(args?.offsetX ?? 0),
+                            y: center.y + CGFloat(args?.offsetY ?? 0))
+        } else if let ax = args?.atX, let ay = args?.atY {
+            point = CGPoint(x: ax, y: ay)
+        } else {
+            throw PlanError.decode("assertPixel needs a target or absolute at(X,Y)")
+        }
+
+        // Poll: the color may settle a frame after the action that produced it.
+        var lastActual = PixelColor.RGB(r: -1, g: -1, b: -1)
+        let matched = Poller(clock: clock).waitUntil(timeoutMs: timeoutMs, intervalMs: intervalMs) {
+            guard let actual = PixelColor.sample(at: point) else { return false }
+            lastActual = actual
+            return PixelColor.matches(actual, expected, tolerance: tolerance)
+        }
+        let actualHex = String(format: "#%02X%02X%02X", lastActual.r, lastActual.g, lastActual.b)
+        var result = StepResult(id: step.id, result: matched ? .pass : .fail, durationMs: 0,
+                                expected: "\(hex) ±\(Int(tolerance))", actual: actualHex)
+        if !matched {
+            let shot = options.artifactsDir.appendingPathComponent("\(step.id).png").path
+            Screenshot.captureMainDisplay(to: shot)
+            result.screenshot = shot
         }
         return result
     }

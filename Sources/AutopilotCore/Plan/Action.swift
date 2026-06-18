@@ -8,6 +8,7 @@ public enum Action: String, Codable, Sendable {
     case menu           // walk the menu bar: ["View", "Rainbow Brackets"]
     case type, keyPress, setValue, scroll
     case drag           // drag from a source element/point to a destination
+    case assertPixel    // assert a screen pixel's color (visual features AX can't see)
     case waitFor, screenshot, assert
     case wait   // explicit, discouraged fixed delay
 }
@@ -26,5 +27,13 @@ public struct ActionArgs: Codable, Equatable, Sendable {
     public var toFiles: [String]?     // drag: file paths to drag onto the target (DnD)
     public var commit: Bool?          // type: press Return after typing to fire end-editing
     public var clear: Bool?           // type: select-all + delete before typing
+    // assertPixel: sample point is target's center + (offsetX,offsetY), or an
+    // absolute (atX,atY) when no target is given. Compares to `color` within `tolerance`.
+    public var offsetX: Int?
+    public var offsetY: Int?
+    public var atX: Int?
+    public var atY: Int?
+    public var color: String?         // expected "#RRGGBB"
+    public var tolerance: Double?     // RGB distance tolerance (default 16)
     public init() {}
 }
