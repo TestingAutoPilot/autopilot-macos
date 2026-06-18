@@ -111,7 +111,9 @@ Each step is one action. Common shape:
 | `waitFor` | **yes** | `present` | Waits until the element appears (`present: true`, default) or disappears (`present: false`). |
 | `screenshot` | no | `path` (optional) | Captures the main display to PNG (defaults into the artifacts dir). |
 | `assert` | **yes** | — (`assert` block) | Checks a property or presence (§4, assertions). |
-| `assertPixel` | optional | `color` (+ point) | Asserts a screen pixel's color (for visual features AX can't see — bracket colors, gutters). See §4. |
+| `assertPixel` | optional | `color` (+ point) | Asserts a single screen pixel's color (visual features AX can't see). See §13. |
+| `assertRegion` | optional | `color`,`width`,`height`,`mode` | Asserts the **average** or **dominant** color over a rectangle — robust for thin glyphs where `assertPixel` is fragile. See §13. |
+| `snapshot` | optional | `reference`,`maxDiff` | Captures a region; writes a reference PNG on first run, diffs against it on later runs. Visual regression. See §13. |
 | `wait` | no | `seconds` | Fixed delay. **Discouraged** — prefer `waitFor`. Use only as a last resort. |
 
 ### Worked examples for each action
@@ -269,6 +271,8 @@ AX-subtree dump so you can fix it).
 | `title` | ✅ works | Matches `AXTitle` (e.g. a button's visible label). |
 | `value` | ✅ works | Matches `AXValue` (e.g. a field's current text). |
 | `vision` | ✅ works | Pixel-template fallback (§7). |
+| `index` | ✅ works | When the predicates match multiple elements, pick the nth (0-based) instead of erroring. A disambiguator of last resort — prefer an `identifier`. |
+| `within` | ✅ works | Scope the search to inside a separately-resolved parent, e.g. `{"role":"AXButton","within":{"role":"AXRow","index":0}}`. |
 | `label` | ⚠️ **not functional** | Declared in the schema but never populated during matching — a `label` selector will never match. Do not use it; use `title` or `identifier`. |
 | `path` | ⚠️ **not functional** | Declared in the schema but the resolver does not consult it — silently ignored. Do not rely on it. |
 
@@ -683,3 +687,74 @@ autosave even with an app-side `--reset-state` that only wipes defaults. For a
 clean baseline, the app's test flag should *also* disable
 `NSQuitAlwaysKeepsWindows`, clear saved window state, and delete autosaved
 documents — wiping `UserDefaults` alone is not enough.
+
+---
+
+## 19. Running a suite (a directory of plans)
+
+Point `run` at a **directory** to execute every `*.json` plan under it
+(recursively), one at a time, with one aggregate result:
+
+```bash
+autopilot run uitests/ --artifacts ./out
+```
+
+- Plans run **sequentially** — macOS has a single keyboard/mouse focus, so
+  input-driving plans cannot truly run in parallel without fighting over it.
+- Files under a `setups/` directory are treated as **include-only fragments**
+  and are not run as standalone plans.
+- Each plan's report + artifacts go in its own `out/<plan-slug>/` subdirectory;
+  an aggregate `out/suite.json` is written, and a `SUITE pass N/M` line goes to
+  stderr. Exit code is `0` only if every plan passed.
+
+## 20. Visual assertions in depth (`assertPixel`, `assertRegion`, `snapshot`)
+
+Three tools, increasing robustness:
+
+```jsonc
+// Single pixel — fine for solid fills, fragile on thin glyphs.
+{ "id": "px", "action": "assertPixel",
+  "target": { "identifier": "swatch" },
+  "args": { "color": "#3478F6", "tolerance": 16 } }
+
+// Region average/dominant — robust for glyphs (anti-aliased edges).
+// "dominant" quantizes colors so a few edge pixels don't skew the result.
+{ "id": "bracket-gold", "action": "assertRegion",
+  "target": { "identifier": "editorTextView" },
+  "args": { "offsetX": 14, "offsetY": -3, "width": 10, "height": 14,
+            "mode": "dominant", "color": "#E5B567", "tolerance": 28 } }
+
+// Snapshot regression — first run writes the reference, later runs diff it.
+{ "id": "toolbar", "action": "snapshot",
+  "target": { "identifier": "toolbar" },
+  "args": { "reference": "ref/toolbar.png", "width": 240, "height": 36,
+            "maxDiff": 0.02 } }
+```
+
+- `assertRegion` `mode`: `average` (default) or `dominant`. Use `dominant` for
+  thin colored glyphs; use a generous `tolerance` (24–30).
+- `snapshot` `reference` resolves relative to the plan file. **Commit the
+  reference PNG** so later runs compare against it; `maxDiff` is the allowed
+  fraction of differing pixels (default `0.02`).
+- All three **poll**, so a color/region that settles a frame late still passes.
+- Limits unchanged: exact hues are display/theme-dependent — assert with
+  tolerance, and prefer the app's own snapshot tests for dense pixel-perfect
+  checks.
+
+## 21. CLI commands (authoring & debugging aids)
+
+Beyond `run`:
+
+```bash
+autopilot doctor                       # check Accessibility permission (exit 3 if missing)
+autopilot dump-axtree <app> [--interactive-only]   # print the AX tree to discover selectors
+autopilot find <app> --identifier foo  # show what a selector resolves to (and how many)
+autopilot suggest <app>                # suggest the best selector for each interactive element
+autopilot lint <plan|dir>              # flag non-functional label/path, missing terminate/window-wait
+```
+
+`<app>` is a bundle id (`com.example.app`) or a path to a `.app` bundle. These
+drive a live app, so they need the Accessibility permission (`doctor` checks it).
+
+> **Editor schema:** point your editor at `schema/plan.schema.json` for plan
+> autocomplete and validation (see `docs/CI.md`).

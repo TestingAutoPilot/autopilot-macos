@@ -1,5 +1,11 @@
 # AutoPilot Roadmap
 
+> **STATUS: v2 implemented.** Milestones A–E below have been built (suite runner,
+> ergonomics, region/snapshot visual assertions, polish, distribution). See
+> `AUTHORING.md` for the resulting capabilities and the git history for details.
+> Items explicitly *not* built are marked in place (e.g. true input-parallelism,
+> which is unsound on one machine). This doc is retained as the design rationale.
+
 Candidate work for future versions, grounded in what's actually deferred or weak
 in the current code — drawn from `review-findings.md` (A6), `feedback-response.md`
 (deferred items across 3 consumer rounds), and the limitations documented in

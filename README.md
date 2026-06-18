@@ -25,9 +25,16 @@ every run.
   checkmark state.
 - Value assertions **poll** until they match (no flaky one-shot reads); the app
   is **activated** before input so keystrokes aren't dropped.
+- **Region & snapshot visual assertions** (`assertRegion` average/dominant color,
+  `snapshot` reference-image diff) for robust glyph/visual-regression checks.
+- **Suite runner:** `autopilot run <dir>/` runs a whole directory of plans with
+  one aggregate report.
+- **Authoring aids:** `dump-axtree`, `find`, `suggest`, and `lint` CLI commands.
+- Selector disambiguators: `index` (nth match) and `within` (parent scoping).
 - Two front-ends over one shared core: a **CLI** and an **MCP server**
   (`run_plan`, `get_report`, `dump_axtree`).
-- Plan composition via `include`; per-plan artifact namespacing.
+- Plan composition via `include`; per-plan artifact namespacing; reliable
+  back-to-back relaunch.
 
 ## Layout
 
