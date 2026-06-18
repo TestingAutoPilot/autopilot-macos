@@ -95,6 +95,36 @@ import Foundation
         #expect(plan.steps[0].args?.to?.identifier == "dst")
     }
 
+    @Test func assertPixelNeedsColorAtParse() throws {
+        let json = """
+        {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},
+         "steps":[{"id":"p","action":"assertPixel","args":{"atX":1,"atY":1}}]}
+        """.data(using: .utf8)!
+        #expect(throws: PlanError.self) {
+            _ = try PlanParser().parse(data: json, baseDirectory: URL(fileURLWithPath: "/tmp"))
+        }
+    }
+
+    @Test func assertRegionNeedsColorAtParse() throws {
+        let json = """
+        {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},
+         "steps":[{"id":"r","action":"assertRegion","args":{"atX":1,"atY":1,"width":4,"height":4}}]}
+        """.data(using: .utf8)!
+        #expect(throws: PlanError.self) {
+            _ = try PlanParser().parse(data: json, baseDirectory: URL(fileURLWithPath: "/tmp"))
+        }
+    }
+
+    @Test func snapshotNeedsReferenceAtParse() throws {
+        let json = """
+        {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},
+         "steps":[{"id":"s","action":"snapshot","args":{"atX":1,"atY":1}}]}
+        """.data(using: .utf8)!
+        #expect(throws: PlanError.self) {
+            _ = try PlanParser().parse(data: json, baseDirectory: URL(fileURLWithPath: "/tmp"))
+        }
+    }
+
     @Test func menuNeedsMenuPath() throws {
         let json = """
         {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},
@@ -119,9 +149,8 @@ import Foundation
         #expect(sel.withinSelector?.index == 0)
     }
 
-    @Test func assertPixelNeedsColor() throws {
-        // assertPixel doesn't require a target, but runtime needs args.color;
-        // parser accepts it (color is checked at run time), so this parses fine.
+    @Test func assertPixelWithColorAndPointIsValid() throws {
+        // A complete assertPixel (color + absolute point) parses fine.
         let json = """
         {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},
          "steps":[{"id":"p","action":"assertPixel","args":{"atX":10,"atY":10,"color":"#FF0000"}}]}

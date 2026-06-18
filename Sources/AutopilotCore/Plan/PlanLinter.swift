@@ -30,6 +30,19 @@ public struct PlanLinter {
             }
         }
 
+        // Visual actions whose missing args only bite at runtime get flagged here
+        // too (parse already rejects them, but lint surfaces them with context).
+        for step in plan.steps {
+            if (step.action == .assertPixel || step.action == .assertRegion), step.args?.color == nil {
+                findings.append(.init(severity: .error, stepId: step.id,
+                    message: "\(step.action.rawValue) needs args.color (#RRGGBB)"))
+            }
+            if step.action == .snapshot, step.args?.reference == nil {
+                findings.append(.init(severity: .error, stepId: step.id,
+                    message: "snapshot needs args.reference"))
+            }
+        }
+
         // Missing terminate as the last step → leaks an app instance.
         if let last = plan.steps.last, last.action != .terminate {
             findings.append(.init(severity: .warning, stepId: nil,

@@ -107,6 +107,20 @@ public struct PlanParser {
             if step.args?.to == nil && step.args?.toFiles == nil {
                 throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "to or toFiles")
             }
+        case .assertPixel, .assertRegion:
+            if step.args?.color == nil {
+                throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "color")
+            }
+            if step.target == nil && (step.args?.atX == nil || step.args?.atY == nil) {
+                throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "target or atX/atY")
+            }
+        case .snapshot:
+            if step.args?.reference == nil {
+                throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "reference")
+            }
+            if step.target == nil && (step.args?.atX == nil || step.args?.atY == nil) {
+                throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "target or atX/atY")
+            }
         default:
             break
         }
