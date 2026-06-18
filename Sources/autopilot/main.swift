@@ -6,9 +6,118 @@ struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "autopilot",
         abstract: "Run a declarative GUI test plan against a macOS app.",
-        subcommands: [Run.self, Doctor.self],
+        subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self],
         defaultSubcommand: Run.self
     )
+}
+
+struct DumpAxtree: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "dump-axtree",
+        abstract: "Launch an app and print its accessibility tree (for authoring selectors).")
+
+    @Argument(help: "Bundle id (com.example.app) or a path to a .app bundle.")
+    var app: String
+
+    @Flag(name: .long, help: "Only include interactive elements (buttons, fields, rows, …).")
+    var interactiveOnly: Bool = false
+
+    func run() throws {
+        let target: TargetApp = app.hasSuffix(".app") || app.hasPrefix("/")
+            ? TargetApp(path: app) : TargetApp(bundleId: app)
+        guard Permissions().hasAccessibility() else {
+            FileHandle.standardError.write(Data("Accessibility permission required (run: autopilot doctor)\n".utf8))
+            throw ExitCode(3)
+        }
+        let launched: LaunchedApp
+        do { launched = try AppLauncher().launch(target) }
+        catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); throw ExitCode(2) }
+        let appEl = AXTree.application(pid: launched.pid)
+        _ = Targeting().waitForPresence(Selector(role: "AXWindow"), present: true,
+                                        app: appEl, timeoutMs: 4000, intervalMs: 100)
+        let snap = AXTree.snapshot(appEl)
+        let nodes = interactiveOnly ? snap.nodes.filter { AXRoles.isInteractive($0["role"]) } : snap.nodes
+        let payload: [String: Any] = ["truncated": snap.truncated, "nodeCount": nodes.count, "nodes": nodes]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        FileHandle.standardOutput.write(data)
+        FileHandle.standardOutput.write(Data("\n".utf8))
+        AppLauncher().terminate(launched)
+    }
+}
+
+struct Lint: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "lint",
+        abstract: "Statically check a plan (or a directory of plans) for common mistakes.")
+
+    @Argument(help: "Path to a plan .json file or a directory of plans.")
+    var path: String
+
+    func run() throws {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else {
+            FileHandle.standardError.write(Data("Not found: \(path)\n".utf8)); throw ExitCode(2)
+        }
+        let urls = isDir.boolValue
+            ? Run.discoverPlans(in: URL(fileURLWithPath: path))
+            : [URL(fileURLWithPath: path)]
+        var anyFindings = false
+        for url in urls {
+            guard let data = try? Data(contentsOf: url) else { continue }
+            let plan: Plan
+            do { plan = try PlanParser().parse(data: data, baseDirectory: url.deletingLastPathComponent()) }
+            catch {
+                print("\(url.lastPathComponent): ERROR \(error)")
+                anyFindings = true; continue
+            }
+            let findings = PlanLinter().lint(plan)
+            if findings.isEmpty {
+                print("\(url.lastPathComponent): ok")
+            } else {
+                anyFindings = true
+                for f in findings {
+                    let loc = f.stepId.map { " [\($0)]" } ?? ""
+                    print("\(url.lastPathComponent):\(loc) \(f.severity.rawValue): \(f.message)")
+                }
+            }
+        }
+        if anyFindings { throw ExitCode(1) }
+    }
+}
+
+struct Find: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "find",
+        abstract: "Launch an app and show which elements a selector resolves to.")
+
+    @Argument(help: "Bundle id or path to a .app bundle.")
+    var app: String
+
+    @Option(name: .long, help: "AX role to match, e.g. AXButton.")
+    var role: String?
+    @Option(name: .long, help: "AX identifier to match.")
+    var identifier: String?
+    @Option(name: .long, help: "AX title to match.")
+    var title: String?
+
+    func run() throws {
+        let target: TargetApp = app.hasSuffix(".app") || app.hasPrefix("/")
+            ? TargetApp(path: app) : TargetApp(bundleId: app)
+        guard Permissions().hasAccessibility() else {
+            FileHandle.standardError.write(Data("Accessibility permission required (run: autopilot doctor)\n".utf8))
+            throw ExitCode(3)
+        }
+        let launched = try AppLauncher().launch(target)
+        let appEl = AXTree.application(pid: launched.pid)
+        _ = Targeting().waitForPresence(Selector(role: "AXWindow"), present: true,
+                                        app: appEl, timeoutMs: 4000, intervalMs: 100)
+        let selector = Selector(role: role, identifier: identifier, title: title)
+        let matches = AXResolver().findAll(in: appEl, selector: selector)
+        print("\(matches.count) match(es) for \(AXResolver.describe(selector)):")
+        for m in matches { print("  \(m)") }
+        AppLauncher().terminate(launched)
+        if matches.count != 1 { throw ExitCode(1) }
+    }
 }
 
 struct Run: ParsableCommand {

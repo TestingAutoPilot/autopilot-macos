@@ -58,6 +58,19 @@ public struct AXResolver {
         return matches[0]
     }
 
+    /// Return a human descriptor for every element matching `selector` — the
+    /// authoring `find` helper (selector → what it resolves to).
+    public func findAll(in appElement: AXUIElement, selector: Selector) -> [String] {
+        var out: [String] = []
+        AXTree.walk(appElement) { el in
+            if Self.matches(node: Self.node(of: el), selector: selector) {
+                out.append(Self.describeNode(el))
+            }
+            return true
+        }
+        return out
+    }
+
     /// Count matches for presence checks, short-circuiting at `stopAt`
     /// (default 2): presence only needs 0 / 1 / "≥2", so there's no need to
     /// finish the walk once we've seen `stopAt` matches.
@@ -85,7 +98,7 @@ public struct AXResolver {
         return parts.joined(separator: " ")
     }
 
-    static func describe(_ s: Selector) -> String {
+    public static func describe(_ s: Selector) -> String {
         var parts: [String] = []
         if let r = s.role { parts.append("role=\(r)") }
         if let id = s.identifier { parts.append("identifier=\(id)") }
