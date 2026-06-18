@@ -51,11 +51,29 @@ Fixtures/TestHostApp/  tiny AppKit app with known AX identifiers, for self-testi
 
 ```bash
 swift build
-.build/debug/autopilot doctor          # check Accessibility permission
-.build/debug/autopilot run plan.json --artifacts ./artifacts
+.build/debug/autopilot doctor                       # check Accessibility permission
+.build/debug/autopilot run plan.json --artifacts ./out
+.build/debug/autopilot run uitests/ --artifacts ./out   # run a whole directory (suite)
 ```
 
-Exit codes: `0` pass, `1` test failure, `2` plan/parse error, `3` permission missing.
+Exit codes: `0` pass, `1` test failure/error, `2` plan/parse error, `3` permission missing.
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `run <plan.json\|dir>` | Run a plan, or every plan in a directory (sequential, aggregate report). |
+| `doctor` | Check the Accessibility permission. |
+| `lint <plan\|dir>` | Static checks: non-functional selectors, missing terminate/window-wait, missing required args. |
+| `dump-axtree <app> [--interactive-only]` | Print an app's AX tree to discover selectors. |
+| `find <app> --identifier/--role/--title` | Show what a selector resolves to. |
+| `suggest <app>` | Suggest the best selector for each interactive element. |
+
+`run` flags: `--artifacts <dir>`, `--keep-going` (continue past failures),
+`--json` (emit report JSON), `--update-snapshots` (write/refresh `snapshot`
+reference images — a missing reference otherwise **fails**).
+
+`<app>` is a bundle id (`com.example.app`) or a path to a `.app` bundle.
 
 **Writing plans:** see **[docs/AUTHORING.md](docs/AUTHORING.md)** — the complete
 plan-authoring guide (actions, assertions, selectors, discovery, hygiene
@@ -86,7 +104,11 @@ process (or terminal) running `autopilot` — `autopilot doctor` checks this.
 
 ## Design & roadmap
 
-- **Authoring guide:** [docs/AUTHORING.md](docs/AUTHORING.md) — how to write plans.
+- **Authoring guide:** [docs/AUTHORING.md](docs/AUTHORING.md) — how to write plans
+  (actions, assertions, selectors, suite runner, visual assertions, CLI, troubleshooting).
+- **Plan schema:** [schema/plan.schema.json](schema/plan.schema.json) — point your
+  editor at it for autocomplete/validation.
+- **CI & releases:** [docs/CI.md](docs/CI.md).
 - **Roadmap:** [docs/ROADMAP.md](docs/ROADMAP.md) — candidate work for future versions.
 - **Consumer feedback & dispositions:** [docs/feedback-response.md](docs/feedback-response.md),
   [docs/review-findings.md](docs/review-findings.md).

@@ -492,17 +492,21 @@ depth-limited. The host plan's `target`/`defaults` win.
 
 ---
 
-## 12. Quick checklist before you run
+## 12. More capabilities
 
-- [ ] `schemaVersion` is `"1.0"`.
-- [ ] `target` sets exactly one of `bundleId` / `path` (path → a real `.app`).
-- [ ] Every step `id` is unique and descriptive.
-- [ ] Selectors use **`identifier`/`role`/`title`/`value`** (not `label`/`path`).
-- [ ] First step waits for `{ "role": "AXWindow" }`.
-- [ ] Actions that need it have a `target`; `type`/`setValue` have `args.text`;
-      `keyPress` has `args.keys`; `assert` has an `assert` block.
-- [ ] Last step is `terminate`.
-- [ ] `autopilot doctor` says Accessibility: OK.
+The sections below cover the rest of the toolset — read these before authoring
+anything beyond a basic click/type/assert plan:
+
+- **§13 / §20 — Visual assertions** (`assertPixel`, `assertRegion`, `snapshot`)
+  for colors and regions the Accessibility API can't see.
+- **§14 — Output & reports** (stdout, `report.json`, artifacts, exit codes,
+  outcome vocabulary).
+- **§15 — AppKit → AX role cheat sheet** · **§16 — What is NOT observable**.
+- **§17 — Troubleshooting** (symptom → cause → fix).
+- **§19 — Running a suite** (a whole directory of plans).
+- **§21 — CLI commands** (`dump-axtree`, `find`, `suggest`, `lint`).
+
+The pre-flight checklist is at the very end (§22).
 
 ---
 
@@ -768,3 +772,29 @@ drive a live app, so they need the Accessibility permission (`doctor` checks it)
 
 > **Editor schema:** point your editor at `schema/plan.schema.json` for plan
 > autocomplete and validation (see `docs/CI.md`).
+
+---
+
+## 22. Pre-flight checklist
+
+Before running a plan:
+
+- [ ] `schemaVersion` is `"1.0"`.
+- [ ] `target` sets exactly one of `bundleId` / `path` (path → a real `.app`).
+- [ ] Every step `id` is unique and descriptive.
+- [ ] Selectors use **`identifier`/`role`/`title`/`value`** (not `label`/`path`,
+      which are non-functional). Use `index`/`within` only to disambiguate.
+- [ ] First step waits for `{ "role": "AXWindow" }`; the app is then activated
+      automatically before input.
+- [ ] Required args present per action:
+      `type`/`setValue` → `text`; `keyPress` → `keys`; `menu` → `menuPath`;
+      `drag` → `to`; `assert` → an `assert` block; `assertPixel`/`assertRegion`
+      → `color` + a target or `atX`/`atY`; `snapshot` → `reference`.
+- [ ] Typing into an already-focused field uses `"focus": false`.
+- [ ] Last step is `terminate` (so the app isn't left running).
+- [ ] For `snapshot` plans: the reference PNG is committed, or you ran once with
+      `--update-snapshots` to create it.
+- [ ] `autopilot lint <plan>` is clean, and `autopilot doctor` says
+      Accessibility: OK.
+
+You can let the tool check most of this for you: **`autopilot lint <plan|dir>`**.
