@@ -129,10 +129,10 @@ import ApplicationServices
                 // focus:false — the app already made the search field first
                 // responder; keycode-based type must land text in its field editor.
                 Step(id: "type-search", action: .type,
-                     target: Selector(identifier: "searchField"),
+                     target: Selector(role: "AXTextField", identifier: "searchField"),
                      args: { var a = ActionArgs(); a.text = "Query 9"; a.focus = false; return a }()),
                 Step(id: "assert-search", action: .assert,
-                     target: Selector(identifier: "searchField"),
+                     target: Selector(role: "AXTextField", identifier: "searchField"),
                      assert: Assertion(property: .value, op: .equals, expected: "Query 9")),
                 Step(id: "quit", action: .terminate),
             ]
@@ -174,6 +174,7 @@ import ApplicationServices
 
     @Test func assertRegionReadsKnownColor() async throws {
         guard AXIsProcessTrusted() else { return }
+        guard CGPreflightScreenCaptureAccess() else { return }
         let binary = testHostApp()
         guard FileManager.default.fileExists(atPath: binary.path) else { return }
         killExistingTestHostApps(); defer { killExistingTestHostApps() }
