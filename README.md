@@ -1,6 +1,6 @@
 # AutoPilot
 
-Declarative macOS GUI testing via the Accessibility API. No LLM in the execution path.
+Declarative macOS GUI testing and documentation screenshots via the Accessibility API. No LLM in the execution path.
 
 ![CI](https://github.com/jschwefel-CBB/autopilot/actions/workflows/ci.yml/badge.svg)
 
