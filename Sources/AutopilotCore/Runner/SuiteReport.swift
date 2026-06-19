@@ -32,7 +32,10 @@ public struct SuiteReport: Codable, Sendable {
         failed = reports.filter { $0.result == .fail }.count
         errored = reports.filter { $0.result == .error }.count
         durationMs = reports.reduce(0) { $0 + $1.durationMs }
-        if errored > 0 { result = .error }
+        // An empty suite (no plans ran) is an error, not a pass — a directory
+        // with no valid plans must not produce a green build.
+        if reports.isEmpty { result = .error }
+        else if errored > 0 { result = .error }
         else if failed > 0 { result = .fail }
         else { result = .pass }
     }

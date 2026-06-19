@@ -32,4 +32,16 @@ import Foundation
         let s = SuiteReport(reports: [report("a", .pass), report("b", .pass)])
         #expect(s.durationMs == 20)
     }
+
+    @Test func emptySuiteIsErrorNotPass() {
+        let s = SuiteReport(reports: [])
+        #expect(s.result == .error)
+        #expect(s.total == 0)
+    }
+
+    @Test func emptyStepsReportIsError() {
+        var r = Report(plan: "no-steps")
+        r.finalize(permissions: PermissionStatus(accessibility: true, automation: true))
+        #expect(r.result == .error)
+    }
 }

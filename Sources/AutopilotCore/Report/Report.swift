@@ -48,7 +48,11 @@ public struct Report: Codable, Sendable {
     public mutating func finalize(permissions: PermissionStatus) {
         self.permissions = permissions
         durationMs = steps.reduce(0) { $0 + $1.durationMs }
-        if steps.contains(where: { $0.result == .error }) { result = .error }
+        if steps.isEmpty {
+            // A plan that executed nothing is an error, not a pass — fail-closed,
+            // so a dropped/over-filtered plan can't silently report green.
+            result = .error
+        } else if steps.contains(where: { $0.result == .error }) { result = .error }
         else if steps.contains(where: { $0.result == .fail }) { result = .fail }
         else { result = .pass }
     }

@@ -246,14 +246,30 @@ struct Run: ParsableCommand {
         var permMissing = false
         for planURL in planURLs {
             let baseDir = planURL.deletingLastPathComponent()
-            guard let data = try? Data(contentsOf: planURL),
-                  let plan = try? PlanParser().parse(data: data, baseDirectory: baseDir) else {
-                FileHandle.standardError.write(Data("  skipped (invalid): \(planURL.lastPathComponent)\n".utf8))
-                continue
+            let name = planURL.lastPathComponent
+            // An unreadable/invalid plan is an ERROR, not a silent skip — else a
+            // suite of all-broken plans would report SUITE pass 0/0 and exit 0.
+            guard let data = try? Data(contentsOf: planURL) else {
+                reports.append(Self.errorReport(name, "could not read plan file"))
+                FileHandle.standardError.write(Data("  [error] \(name): unreadable\n".utf8)); continue
             }
-            let report = try PlanRunner().run(plan, options: RunOptions(
-                keepGoing: keepGoing, artifactsDir: artifactsURL, planBaseDir: baseDir,
-            updateSnapshots: updateSnapshots))
+            let plan: Plan
+            do { plan = try PlanParser().parse(data: data, baseDirectory: baseDir) }
+            catch {
+                reports.append(Self.errorReport(name, "invalid plan: \(error)"))
+                FileHandle.standardError.write(Data("  [error] \(name): invalid (\(error))\n".utf8)); continue
+            }
+            // A thrown launch (or other) error for ONE plan must not abort the
+            // whole suite — record it as an error report and keep going so the
+            // remaining plans run and suite.json is always written.
+            let report: Report
+            do {
+                report = try PlanRunner().run(plan, options: RunOptions(
+                    keepGoing: keepGoing, artifactsDir: artifactsURL, planBaseDir: baseDir,
+                    updateSnapshots: updateSnapshots))
+            } catch {
+                report = Self.errorReport(plan.name, "run failed: \(error)")
+            }
             if report.permissions?.accessibility == false { permMissing = true }
             reports.append(report)
             FileHandle.standardError.write(Data("  [\(report.result.rawValue)] \(report.plan)\n".utf8))
@@ -277,6 +293,15 @@ struct Run: ParsableCommand {
         case .pass, .skipped: return
         case .fail, .error: throw ExitCode(1)
         }
+    }
+
+    /// A synthetic error Report for a plan that couldn't be read/parsed/run, so
+    /// the suite aggregate counts it (and exits non-zero) instead of skipping it.
+    static func errorReport(_ name: String, _ message: String) -> Report {
+        var r = Report(plan: name)
+        r.add(StepResult(id: "_plan", result: .error, durationMs: 0, message: message))
+        r.finalize(permissions: PermissionStatus(accessibility: true, automation: true))
+        return r
     }
 
     /// All *.json plan files under `dir`, recursively, in stable sorted order.
