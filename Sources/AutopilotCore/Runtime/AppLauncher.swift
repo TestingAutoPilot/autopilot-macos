@@ -59,18 +59,34 @@ public struct AppLauncher {
                 else { result = .failure(err ?? AppLaunchError.launchFailed(url.path)) }
                 sem.signal()
             }
-            if fileURLs.isEmpty {
-                NSWorkspace.shared.openApplication(at: url, configuration: config, completionHandler: completion)
-            } else {
-                NSWorkspace.shared.open(fileURLs, withApplicationAt: url, configuration: config, completionHandler: completion)
-            }
+            // Launch the app FIRST (without files). Opening files via
+            // open(_:withApplicationAt:) in the same call races LaunchServices'
+            // type resolution and can route a file to its default handler instead
+            // of the target app. So launch, then open the files INTO this instance.
+            NSWorkspace.shared.openApplication(at: url, configuration: config, completionHandler: completion)
             sem.wait()
             switch result! {
-            case .success(let app): return LaunchedApp(pid: app.processIdentifier, runningApp: app)
+            case .success(let app):
+                if !fileURLs.isEmpty {
+                    openFiles(fileURLs, in: app)
+                }
+                return LaunchedApp(pid: app.processIdentifier, runningApp: app)
             case .failure(let err): lastError = err   // transient: retry
             }
         }
         throw lastError
+    }
+
+    /// Open files in a specific already-running app instance, by its bundle URL.
+    /// Targets the given app explicitly so the file cannot be routed to the OS
+    /// default handler for its type.
+    private func openFiles(_ files: [URL], in app: NSRunningApplication) {
+        guard let appURL = app.bundleURL else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        let sem = DispatchSemaphore(value: 0)
+        NSWorkspace.shared.open(files, withApplicationAt: appURL, configuration: config) { _, _ in sem.signal() }
+        _ = sem.wait(timeout: .now() + 5)
     }
 
     public func terminate(_ app: LaunchedApp) {
