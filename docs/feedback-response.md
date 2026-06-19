@@ -4,8 +4,10 @@
 report from authoring and running an 18-plan GUI suite against AutoPilot at commit
 `3d7b5cb`.
 
-**Status of this document:** triage / disposition. **UPDATE: now implemented.**
-Every accepted item below has since been built (see git history and
+**Status of this document:** triage / disposition. Rounds 1–3 are **implemented**;
+**Round 4 (at the very bottom) is triaged but NOT yet implemented** — it contains
+an open **P0** (`dump_axtree` reports a phantom window). Every accepted item from
+rounds 1–3 has been built (see git history and
 `AUTHORING.md`): both P0s (poll asserts, activate app), press/menu actions,
 full key map, ambiguous-match listing, unsupported-key error, summary line,
 `dump_axtree` filter, plus the new capabilities from the coverage report
@@ -208,7 +210,77 @@ fixed:
 |---|---|---|---|
 | `type focus:false` lands nothing in an `NSSearchField` | P2 | ✅ confirmed — `type` used `keyboardSetUnicodeString`, which the search field's child field editor ignores | **FIXED** — `type` now sends printable characters as virtual-key events (shared `KeyMap`), falling back to unicode-string only for non-ANSI chars. Verified: `type focus:false` into an `NSSearchField` lands text. |
 
-Net result across all three rounds: every code-level finding the medit consumer
-filed has been verified against source and fixed; the remaining items are
-documented limitations (assertPixel on thin glyphs; `marked` needs the menu
-opened; file drag-drop unsupported; non-ANSI characters via fallback).
+Net result through Round 3: every code-level finding the medit consumer filed in
+rounds 1–3 has been verified against source and fixed; the remaining round-1–3
+items are documented limitations (assertPixel on thin glyphs; `marked` needs the
+menu opened; file drag-drop unsupported; non-ANSI characters via fallback).
+**Round 4 (below) adds a new open P0** — see its disposition.
+
+---
+
+## Round 4 (medit v2 retest) — disposition — **NOT YET IMPLEMENTED**
+
+> medit labels this "Round 3" in its own doc, but it is chronologically the
+> *fourth* report (after the NSSearchField Round 3 above) — filed against
+> AutoPilot commit `76e3261` while building medit's Markdown v2 features.
+> **This is a triage/disposition only; no code has been changed yet.**
+
+Both findings were **re-verified against AutoPilot source** and are accurate.
+
+| # | Finding | Severity | Verified | Decision |
+|---|---|---|---|---|
+| R4-1 | `dump_axtree` (and `find`/`suggest`/`run` by bundleId) reports a phantom window — it does not attach to the running instance | **P0** | ✅ confirmed in source | **FIX — accept** |
+| R4-2 | `run` with `path` + `launchFiles` opened the file in the OS default handler, not the target app | P1 | plausible (NSWorkspace) | **INVESTIGATE** |
+
+### R4-1 (P0) — root cause confirmed (worse than the report inferred)
+
+The report's hypothesis ("resolves to a fresh/launched context rather than
+attaching") is exactly right, and the mechanism is concrete:
+
+- `MCPServer.dumpAXTree` (`MCPServer.swift:87`) calls `AppLauncher().launch(target)`.
+- `AppLauncher.launch` (`AppLauncher.swift:39`) **first kills any already-running
+  instance** (`waitForExistingInstancesToExit`, added in Milestone A to make
+  back-to-back *test* runs reliable) and then launches a **fresh** one.
+
+So `dump_axtree` against the consumer's running medit:
+1. **terminated** their instance (the one with `sb-test.md` open) — which is why
+   the AppleScript window list went momentarily empty;
+2. launched a **fresh** instance (`Untitled`, no toolbar);
+3. reported *that* tree.
+
+The process count stayed at 1 because kill + relaunch nets to one — exactly the
+confusing symptom reported. **There is no attach-to-running path anywhere in the
+codebase today**; `launch()` is the only way to obtain a pid. The kill-first
+behavior is correct for `run` (a *test* wants a clean instance) but is wrong for
+every *inspection* command (`dump_axtree`, `find`, `suggest`), which must observe
+the app as it is.
+
+**Planned fix (when implemented):**
+1. Add an **attach** path: resolve a `bundleId` to the **frontmost running
+   instance** (`NSWorkspace.runningApplications` → its pid) and snapshot *that*
+   AX tree, **without launching or terminating** anything.
+2. Make `dump_axtree` / `find` / `suggest` **attach by default**; only launch when
+   explicitly asked (or when nothing is running — and then say so).
+3. **Self-check:** if no running instance matches the bundle id, return a clear
+   "no running instance" error, never a blank/default tree that looks like data.
+4. Add **dump by pid** (`{"pid": 81256}`) as the unambiguous escape hatch, and
+   surface `windowTitle`/`pid` to disambiguate multiple windows/instances.
+5. Leave `run`'s launch-fresh semantics intact (tests want isolation), but
+   document the distinction (inspect = attach, run = launch).
+
+This is the highest-priority open item: an inspection tool that disagrees with
+the running app manufactures false negatives, as the report demonstrates.
+
+### R4-2 (P1) — launchFiles routing
+
+`AppLauncher.launch` uses `NSWorkspace.open(fileURLs, withApplicationAt:url,…)`
+(`AppLauncher.swift:61`), which is *supposed* to open the files in the app at
+`url`. The report saw the `.md` open elsewhere. To investigate: confirm whether
+the OpenConfiguration / file-type handler is being overridden, and whether
+`CFBundleDocumentTypes` on the target matters. Deferred behind R4-1.
+
+### Net
+Until R4-1 lands, AutoPilot can drive an app it launches (the `run` path is
+sound — the medit suite passes), but its **state-inspection** commands cannot be
+trusted against a separately-running instance. Fixing R4-1 restores AutoPilot as
+a trustworthy verifier.
