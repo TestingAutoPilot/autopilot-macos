@@ -125,6 +125,18 @@ import Foundation
         }
     }
 
+    @Test func labelAndPathSelectorsRejectedAtParse() throws {
+        for field in ["\"label\":\"OK\"", "\"path\":[\"w[0]\"]"] {
+            let json = """
+            {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},
+             "steps":[{"id":"c","action":"click","target":{\(field)}}]}
+            """.data(using: .utf8)!
+            #expect(throws: PlanError.self) {
+                _ = try PlanParser().parse(data: json, baseDirectory: URL(fileURLWithPath: "/tmp"))
+            }
+        }
+    }
+
     @Test func keyPressBadChordRejectedAtParse() throws {
         let json = """
         {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},

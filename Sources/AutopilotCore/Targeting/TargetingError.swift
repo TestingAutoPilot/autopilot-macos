@@ -4,10 +4,14 @@ public enum TargetingError: Error, CustomStringConvertible {
     case notFound(selector: String)
     case ambiguous(selector: String, count: Int, matches: [String])
     case timedOut(selector: String, timeoutMs: Int)
+    case treeTruncated(selector: String, visited: Int)
 
     public var description: String {
         switch self {
         case .notFound(let s): return "No element matched selector: \(s)"
+        case .treeTruncated(let s, let n):
+            return "No match for \(s), but the AX tree was truncated at \(n) nodes — " +
+                   "the element may exist beyond the cap. Narrow with `within`, or the cap is too low."
         case .ambiguous(let s, let n, let matches):
             let listed = matches.enumerated()
                 .map { "  [\($0.offset)] \($0.element)" }

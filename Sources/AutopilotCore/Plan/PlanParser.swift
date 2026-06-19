@@ -88,6 +88,11 @@ public struct PlanParser {
         if Self.targetRequiringActions.contains(step.action), step.target == nil {
             throw PlanError.missingTarget(stepId: step.id, action: step.action.rawValue)
         }
+        // Reject non-functional selector fields as a HARD error (not just a lint
+        // warning) — `label`/`path` never match anything, so a plan using them is
+        // certainly wrong. Check the step target, its `within` parent, and `to`.
+        if let t = step.target { try validateSelector(t, stepId: step.id) }
+        if let to = step.args?.to { try validateSelector(to, stepId: step.id) }
         switch step.action {
         case .type, .setValue:
             if step.args?.text == nil {
@@ -138,6 +143,18 @@ public struct PlanParser {
         default:
             break
         }
+    }
+
+    /// Reject the non-functional `label`/`path` selector fields (recursively
+    /// through `within`), so an invalid selector is a hard parse error.
+    func validateSelector(_ s: Selector, stepId: String) throws {
+        if s.label != nil {
+            throw PlanError.decode("step \(stepId): selector field `label` is non-functional — use `identifier`, `title`, or `value`")
+        }
+        if s.path != nil {
+            throw PlanError.decode("step \(stepId): selector field `path` is non-functional — it is never consulted")
+        }
+        if let parent = s.withinSelector { try validateSelector(parent, stepId: stepId) }
     }
 
     /// Validate an assertion at parse time so a malformed comparison surfaces as

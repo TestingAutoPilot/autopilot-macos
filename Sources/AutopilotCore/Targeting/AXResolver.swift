@@ -50,7 +50,7 @@ public struct AXResolver {
         let root = try rootFor(selector, in: appElement)
         var matches: [AXUIElement] = []
         var descriptors: [String] = []
-        AXTree.walk(root) { el in
+        let walk = AXTree.walk(root) { el in
             if Self.matches(node: Self.node(of: el), selector: selector) {
                 matches.append(el)
                 if descriptors.count < Self.maxReportedMatches {
@@ -60,7 +60,12 @@ public struct AXResolver {
             return true   // visit the whole tree (need full count for ambiguity)
         }
         let desc = Self.describe(selector)
-        if matches.isEmpty { throw TargetingError.notFound(selector: desc) }
+        if matches.isEmpty {
+            // Distinguish "really absent" from "we stopped looking at the cap" —
+            // the latter is a tooling limit, not a missing element.
+            if walk.truncated { throw TargetingError.treeTruncated(selector: desc, visited: walk.visited) }
+            throw TargetingError.notFound(selector: desc)
+        }
         // An explicit `index` disambiguates an intentionally-multiple match.
         if let idx = selector.index {
             guard idx >= 0, idx < matches.count else {

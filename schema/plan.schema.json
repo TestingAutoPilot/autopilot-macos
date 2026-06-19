@@ -45,8 +45,6 @@
         "identifier": { "type": "string", "description": "AXIdentifier — the preferred locator." },
         "title": { "type": "string" },
         "value": { "type": "string" },
-        "label": { "type": "string", "description": "NON-FUNCTIONAL — never matches; use title/identifier." },
-        "path": { "type": "array", "items": { "type": "string" }, "description": "NON-FUNCTIONAL — ignored." },
         "index": { "type": "integer", "minimum": 0, "description": "Pick the nth match when ambiguous." },
         "within": { "$ref": "#/$defs/selector", "description": "Scope to inside this parent element." },
         "vision": {
@@ -122,7 +120,25 @@
         "args": { "$ref": "#/$defs/args" },
         "assert": { "$ref": "#/$defs/assertion" },
         "timeoutMs": { "type": "integer", "minimum": 0 }
-      }
+      },
+      "allOf": [
+        { "if": { "properties": { "action": { "enum": ["click","doubleClick","rightClick","press","type","keyPress","setValue","scroll","drag","waitFor","assert"] } } },
+          "then": { "required": ["target"] } },
+        { "if": { "properties": { "action": { "const": "type" } } },
+          "then": { "properties": { "args": { "required": ["text"] } }, "required": ["args"] } },
+        { "if": { "properties": { "action": { "const": "setValue" } } },
+          "then": { "properties": { "args": { "required": ["text"] } }, "required": ["args"] } },
+        { "if": { "properties": { "action": { "const": "keyPress" } } },
+          "then": { "properties": { "args": { "required": ["keys"] } }, "required": ["args"] } },
+        { "if": { "properties": { "action": { "const": "menu" } } },
+          "then": { "properties": { "args": { "required": ["menuPath"] } }, "required": ["args"] } },
+        { "if": { "properties": { "action": { "const": "assert" } } },
+          "then": { "required": ["assert"] } },
+        { "if": { "properties": { "action": { "const": "snapshot" } } },
+          "then": { "properties": { "args": { "required": ["reference"] } }, "required": ["args"] } },
+        { "if": { "properties": { "action": { "enum": ["assertPixel","assertRegion"] } } },
+          "then": { "properties": { "args": { "required": ["color"] } }, "required": ["args"] } }
+      ]
     }
   }
 }
