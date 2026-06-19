@@ -49,6 +49,14 @@ public struct PlanLinter {
                 message: "plan does not end with a `terminate` step — the app will be left running"))
         }
 
+        // captureTarget: true on a step with no target selector is a no-op.
+        for step in plan.steps {
+            if step.captureTarget == true, step.target == nil {
+                findings.append(.init(severity: .warning, stepId: step.id,
+                    message: "`captureTarget: true` has no effect — this step has no `target` selector"))
+            }
+        }
+
         // No window wait before the first input/assert step.
         let inputActions: Set<Action> = [.click, .doubleClick, .rightClick, .press,
                                          .type, .keyPress, .setValue, .scroll, .drag, .menu]

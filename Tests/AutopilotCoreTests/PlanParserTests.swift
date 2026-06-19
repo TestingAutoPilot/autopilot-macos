@@ -226,4 +226,63 @@ import Foundation
         let plan = try PlanParser().parse(data: json, baseDirectory: URL(fileURLWithPath: "/tmp"))
         #expect(plan.steps[0].args?.color == "#FF0000")
     }
+
+    @Test func screenshotActionDecodesAllModes() throws {
+        // Full display, element-scoped, absolute region, and captureTarget all parse.
+        let json = """
+        {"schemaVersion":"1.0","name":"x","target":{"bundleId":"a"},
+         "steps":[
+           {"id":"full","action":"screenshot"},
+           {"id":"el","action":"screenshot",
+            "target":{"identifier":"toolbar"},"args":{"padding":16}},
+           {"id":"region","action":"screenshot",
+            "args":{"atX":0,"atY":0,"width":400,"height":50}},
+           {"id":"ct","action":"assert","target":{"identifier":"label"},
+            "assert":{"property":"value","op":"equals","expected":"OK"},
+            "captureTarget":true,"args":{"padding":8}}
+         ]}
+        """.data(using: .utf8)!
+        let plan = try PlanParser().parse(data: json, baseDirectory: URL(fileURLWithPath: "/tmp"))
+        #expect(plan.steps.count == 4)
+        #expect(plan.steps[1].target?.identifier == "toolbar")
+        #expect(plan.steps[1].args?.padding == 16)
+        #expect(plan.steps[2].args?.atX == 0)
+        #expect(plan.steps[2].args?.width == 400)
+        #expect(plan.steps[3].captureTarget == true)
+        #expect(plan.steps[3].args?.padding == 8)
+    }
+}
+
+@Suite struct PlanLinterCaptureTargetTests {
+    func plan(steps: [[String: Any]]) throws -> Plan {
+        let obj: [String: Any] = [
+            "schemaVersion": "1.0", "name": "t",
+            "target": ["bundleId": "a"],
+            "steps": steps,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: obj)
+        return try PlanParser().parse(data: data, baseDirectory: URL(fileURLWithPath: "/tmp"))
+    }
+
+    @Test func captureTargetWithNoTargetIsWarning() throws {
+        // captureTarget: true on a step with no target → linter warning
+        let p = try plan(steps: [
+            ["id": "s", "action": "screenshot", "captureTarget": true]
+        ])
+        let findings = PlanLinter().lint(p)
+        #expect(findings.contains { $0.stepId == "s" && $0.severity == .warning
+            && $0.message.contains("captureTarget") })
+    }
+
+    @Test func captureTargetWithTargetProducesNoWarning() throws {
+        // captureTarget: true on a step WITH a target → no linter warning
+        let p = try plan(steps: [
+            ["id": "a", "action": "assert",
+             "target": ["identifier": "btn"],
+             "assert": ["property": "value", "op": "equals", "expected": "OK"],
+             "captureTarget": true]
+        ])
+        let findings = PlanLinter().lint(p)
+        #expect(!findings.contains { $0.message.contains("captureTarget") })
+    }
 }

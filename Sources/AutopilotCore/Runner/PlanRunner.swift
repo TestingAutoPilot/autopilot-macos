@@ -9,6 +9,9 @@ public struct RunOptions {
     /// Write/overwrite snapshot reference images. When false (default), a missing
     /// reference is a FAILURE, not a silent pass — the standard snapshot convention.
     public var updateSnapshots: Bool
+    /// Human-readable plan name, threaded into PNG tEXt metadata on failure shots.
+    /// Set automatically by PlanRunner.run(_:options:) from plan.name.
+    var planName: String = ""
     public init(keepGoing: Bool = false, artifactsDir: URL, planBaseDir: URL? = nil,
                 updateSnapshots: Bool = false) {
         self.keepGoing = keepGoing; self.artifactsDir = artifactsDir
@@ -41,6 +44,7 @@ public struct PlanRunner {
         // other's report.json / screenshots / AX dumps.
         var options = callerOptions
         options.artifactsDir = callerOptions.artifactsDir.appendingPathComponent(Self.slug(plan.name))
+        options.planName = plan.name
 
         var report = Report(plan: plan.name)
         let hasAX = permissions.hasAccessibility()
@@ -74,8 +78,7 @@ public struct PlanRunner {
             do {
                 let result = try runStep(step, app: appElement, launched: launched,
                                          targeting: targeting, timeoutMs: stepTimeout,
-                                         intervalMs: intervalMs, options: options,
-                                         planName: plan.name)
+                                         intervalMs: intervalMs, options: options)
                 let dur = Int((clock.now() - start) * 1000)
                 var r = result; r.durationMs = dur
                 // captureTarget: crop + save a screenshot of the step's target
@@ -87,7 +90,9 @@ public struct PlanRunner {
                     let shotPath = options.artifactsDir
                         .appendingPathComponent("\(step.id)-target.png").path
                     let padding = step.args?.padding ?? 8
-                    let meta = stepMetadata(step, plan: plan.name)
+                    let outcome = r.result == .pass ? "pass" : "fail"
+                    let meta = stepMetadata(step, plan: options.planName)
+                        .merging(["autopilot-result": outcome]) { _, new in new }
                     if Screenshot.captureElement(el, to: shotPath, padding: padding, metadata: meta) {
                         r.screenshot = r.screenshot ?? shotPath
                     }
@@ -99,7 +104,7 @@ public struct PlanRunner {
                 let dump = writeAXDump(appElement, stepId: step.id, dir: options.artifactsDir)
                 // Full-display failure shot (always).
                 var shot = captureFailureShot(step.id, dir: options.artifactsDir,
-                                              step: step, planName: plan.name)
+                                              step: step, planName: options.planName)
                 // If the step had a target and we can still resolve it, also save
                 // a tighter element-scoped crop as "<id>-target.png". Useful when
                 // the element is visible but had wrong content.
@@ -140,7 +145,7 @@ public struct PlanRunner {
 
     private func runStep(_ step: Step, app: AXUIElement, launched: LaunchedApp,
                          targeting: Targeting, timeoutMs: Int, intervalMs: Int,
-                         options: RunOptions, planName: String = "") throws -> StepResult {
+                         options: RunOptions) throws -> StepResult {
         switch step.action {
         case .launch:
             return StepResult(id: step.id, result: .pass, durationMs: 0)
@@ -153,14 +158,20 @@ public struct PlanRunner {
         case .screenshot:
             let path = step.args?.path ?? options.artifactsDir.appendingPathComponent("\(step.id).png").path
             let padding = step.args?.padding ?? 0
-            let meta = stepMetadata(step, plan: planName)
+            let meta = stepMetadata(step, plan: options.planName)
             let ok: Bool
-            if let t = step.target,
-               case .ax(let el) = try? targeting.resolve(t, app: app,
-                                                          timeoutMs: timeoutMs, intervalMs: intervalMs,
-                                                          baseDir: options.planBaseDir) {
-                // Target-scoped: capture just the element frame (+padding).
-                ok = Screenshot.captureElement(el, to: path, padding: padding, metadata: meta)
+            var fallbackMessage: String? = nil
+            if let t = step.target {
+                // Resolve the target; if it fails, fall back to full display and
+                // record a message so the author knows the crop didn't happen.
+                if case .ax(let el) = try? targeting.resolve(t, app: app,
+                                                              timeoutMs: timeoutMs, intervalMs: intervalMs,
+                                                              baseDir: options.planBaseDir) {
+                    ok = Screenshot.captureElement(el, to: path, padding: padding, metadata: meta)
+                } else {
+                    fallbackMessage = "target did not resolve; fell back to full display"
+                    ok = Screenshot.captureMainDisplay(to: path, metadata: meta)
+                }
             } else if let ax = step.args?.atX, let ay = step.args?.atY,
                       let w = step.args?.width, let h = step.args?.height {
                 // Absolute region capture.
@@ -171,7 +182,7 @@ public struct PlanRunner {
                 ok = Screenshot.captureMainDisplay(to: path, metadata: meta)
             }
             return StepResult(id: step.id, result: ok ? .pass : .fail, durationMs: 0,
-                              screenshot: ok ? path : nil)
+                              message: fallbackMessage, screenshot: ok ? path : nil)
         case .waitFor:
             let present = step.args?.present ?? true
             let ok = targeting.waitForPresence(step.target!, present: present, app: app,
@@ -268,7 +279,8 @@ public struct PlanRunner {
                                 expected: expected, actual: outcome.actual)
         if !outcome.matched {
             result.axDump = writeAXDump(app, stepId: step.id, dir: options.artifactsDir)
-            result.screenshot = captureFailureShot(step.id, dir: options.artifactsDir)
+            result.screenshot = captureFailureShot(step.id, dir: options.artifactsDir,
+                                                   step: step, planName: options.planName)
         }
         return result
     }
@@ -312,7 +324,8 @@ public struct PlanRunner {
         var result = StepResult(id: step.id, result: matched ? .pass : .fail, durationMs: 0,
                                 expected: "\(hex) ±\(Int(tolerance))", actual: actualHex)
         if !matched {
-            result.screenshot = captureFailureShot(step.id, dir: options.artifactsDir)
+            result.screenshot = captureFailureShot(step.id, dir: options.artifactsDir,
+                                                   step: step, planName: options.planName)
         }
         return result
     }
@@ -359,7 +372,8 @@ public struct PlanRunner {
                                 expected: "\(hex) ±\(Int(tolerance)) (\(dominant ? "dominant" : "average"))",
                                 actual: actualHex)
         if !matched {
-            result.screenshot = captureFailureShot(step.id, dir: options.artifactsDir)
+            result.screenshot = captureFailureShot(step.id, dir: options.artifactsDir,
+                                                   step: step, planName: options.planName)
         }
         return result
     }

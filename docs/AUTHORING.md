@@ -629,9 +629,14 @@ subdirectory (`<artifacts>/<plan-name-slug>/`), so running many plans into one
 `--artifacts` root never clobbers. AX dumps carry a `truncated` flag so a capped
 tree is never mistaken for a complete one.
 
-**Failure artifacts** (written only on failure): `<step>.png` (screenshot) and
-`<step>.axtree.json` (the AX tree autopilot saw). These are your debugging
+**Failure artifacts** (written on failure): `<step>.png` (full-display screenshot)
+and `<step>.axtree.json` (the AX tree autopilot saw). These are your debugging
 surface — read `actual`, the screenshot, and the tree to fix the plan or the app.
+When the failing step had a `target` that could still be resolved, an additional
+`<step>-target.png` crops to just that element.
+
+**Pass artifacts** (`captureTarget: true` only): `<step>-target.png` — a cropped
+screenshot of the target element saved even on a passing step, for visual logging.
 
 **Exit codes:** `0` pass · `1` test failure/error · `2` plan/parse error ·
 `3` Accessibility permission missing.
