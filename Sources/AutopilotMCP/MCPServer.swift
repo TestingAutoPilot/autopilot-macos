@@ -8,15 +8,21 @@ final class MCPServer {
 
     func run() {
         while let line = readLine(strippingNewline: true) {
+            if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
             guard let data = line.data(using: .utf8),
-                  let msg = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                  let msg = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                // Parse error: reply per JSON-RPC so a strict client doesn't hang.
+                respond(id: nil, error: ["code": -32700, "message": "Parse error: not valid JSON"]); continue
+            }
             handle(msg)
         }
     }
 
     func handle(_ msg: [String: Any]) {
         let id = msg["id"]
-        guard let method = msg["method"] as? String else { return }
+        guard let method = msg["method"] as? String else {
+            respond(id: id, error: ["code": -32600, "message": "Invalid Request: missing 'method'"]); return
+        }
         switch method {
         case "initialize":
             respond(id: id, result: [
@@ -40,8 +46,64 @@ final class MCPServer {
         case "run_plan": runPlan(id: id, args: args)
         case "get_report": getReport(id: id)
         case "dump_axtree": dumpAXTree(id: id, args: args)
+        case "find_element": findElement(id: id, args: args)
+        case "suggest_selectors": suggestSelectors(id: id, args: args)
+        case "lint_plan": lintPlan(id: id, args: args)
         default: respond(id: id, error: ["code": -32602, "message": "Unknown tool: \(name)"])
         }
+    }
+
+    /// Attach to a running app (bundleId/path/pid) — shared by find/suggest.
+    private func attach(_ args: [String: Any]) throws -> LaunchedApp {
+        if let pid = args["pid"] as? Int { return try AppLauncher().attach(pid: pid_t(pid)) }
+        if let b = args["bundleId"] as? String { return try AppLauncher().attach(TargetApp(bundleId: b)) }
+        if let p = args["path"] as? String { return try AppLauncher().attach(TargetApp(path: p)) }
+        throw AppLaunchError.noRunningInstance("(needs bundleId, path, or pid)")
+    }
+
+    func findElement(id: Any?, args: [String: Any]) {
+        do {
+            let launched = try attach(args)
+            let app = AXTree.application(pid: launched.pid)
+            _ = Targeting().waitForPresence(Selector(role: "AXWindow"), present: true, app: app, timeoutMs: 2000, intervalMs: 100)
+            let sel = Selector(role: args["role"] as? String,
+                               identifier: args["identifier"] as? String,
+                               title: args["title"] as? String)
+            let matches = AXResolver().findAll(in: app, selector: sel)
+            let payload: [String: Any] = ["count": matches.count, "matches": matches]
+            respondToolText(id: id, text: String(data: try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]), encoding: .utf8) ?? "{}")
+        } catch let e as AppLaunchError {
+            respond(id: id, error: ["code": -32011, "message": "\(e)"])
+        } catch { respond(id: id, error: ["code": -32603, "message": String(describing: error)]) }
+    }
+
+    func suggestSelectors(id: Any?, args: [String: Any]) {
+        do {
+            let launched = try attach(args)
+            let app = AXTree.application(pid: launched.pid)
+            _ = Targeting().waitForPresence(Selector(role: "AXWindow"), present: true, app: app, timeoutMs: 2000, intervalMs: 100)
+            let suggestions = SelectorSuggester.suggest(from: AXTree.snapshot(app).nodes).map { s -> [String: Any] in
+                let sel = (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(s.selector))) ?? [:]
+                return ["role": s.role, "label": s.label, "selector": sel, "note": s.note]
+            }
+            respondToolText(id: id, text: String(data: try JSONSerialization.data(withJSONObject: suggestions, options: [.prettyPrinted]), encoding: .utf8) ?? "[]")
+        } catch let e as AppLaunchError {
+            respond(id: id, error: ["code": -32011, "message": "\(e)"])
+        } catch { respond(id: id, error: ["code": -32603, "message": String(describing: error)]) }
+    }
+
+    func lintPlan(id: Any?, args: [String: Any]) {
+        do {
+            let data: Data; let baseDir: URL
+            if let path = args["path"] as? String {
+                let url = URL(fileURLWithPath: path); data = try Data(contentsOf: url); baseDir = url.deletingLastPathComponent()
+            } else if let planObj = args["plan"] {
+                data = try JSONSerialization.data(withJSONObject: planObj); baseDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            } else { respond(id: id, error: ["code": -32602, "message": "lint_plan needs 'plan' or 'path'"]); return }
+            let plan = try PlanParser().parse(data: data, baseDirectory: baseDir)
+            let findings = PlanLinter().lint(plan).map { ["severity": $0.severity.rawValue, "stepId": $0.stepId ?? "", "message": $0.message] }
+            respondToolText(id: id, text: String(data: try JSONSerialization.data(withJSONObject: ["findings": findings], options: [.prettyPrinted]), encoding: .utf8) ?? "{}")
+        } catch { respond(id: id, error: ["code": -32603, "message": String(describing: error)]) }
     }
 
     func runPlan(id: Any?, args: [String: Any]) {
@@ -60,7 +122,13 @@ final class MCPServer {
             let plan = try PlanParser().parse(data: data, baseDirectory: baseDir)
             let artifacts = URL(fileURLWithPath: (args["artifactsDir"] as? String) ?? "artifacts")
             let keepGoing = (args["keepGoing"] as? Bool) ?? false
-            let report = try PlanRunner().run(plan, options: RunOptions(keepGoing: keepGoing, artifactsDir: artifacts))
+            let updateSnapshots = (args["updateSnapshots"] as? Bool) ?? false
+            // Thread planBaseDir + updateSnapshots so snapshot/vision relative
+            // paths resolve against the plan dir (not CWD) and an MCP caller can
+            // create/refresh a snapshot baseline — parity with the CLI.
+            let report = try PlanRunner().run(plan, options: RunOptions(
+                keepGoing: keepGoing, artifactsDir: artifacts,
+                planBaseDir: baseDir, updateSnapshots: updateSnapshots))
             lastReport = report
             let jsonText = String(data: try reporter.json(report), encoding: .utf8) ?? "{}"
             respondToolText(id: id, text: jsonText)
@@ -115,10 +183,11 @@ final class MCPServer {
 
     static let toolDefinitions: [[String: Any]] = [
         ["name": "run_plan",
-         "description": "Run a GUI test plan (inline 'plan' object or 'path' to JSON). Returns report JSON.",
+         "description": "Run a GUI test plan (inline 'plan' object or 'path' to JSON). LAUNCHES a fresh app instance. Returns report JSON.",
          "inputSchema": ["type": "object", "properties": [
             "plan": ["type": "object"], "path": ["type": "string"],
-            "artifactsDir": ["type": "string"], "keepGoing": ["type": "boolean"]]]],
+            "artifactsDir": ["type": "string"], "keepGoing": ["type": "boolean"],
+            "updateSnapshots": ["type": "boolean"]]]],
         ["name": "get_report",
          "description": "Return the JSON report from the most recent run_plan.",
          "inputSchema": ["type": "object", "properties": [:]]],
@@ -127,6 +196,19 @@ final class MCPServer {
          "inputSchema": ["type": "object", "properties": [
             "bundleId": ["type": "string"], "path": ["type": "string"],
             "pid": ["type": "integer"], "interactiveOnly": ["type": "boolean"]]]],
+        ["name": "find_element",
+         "description": "Attach to a RUNNING app and show which elements a selector (role/identifier/title) resolves to, with frames. Never launches.",
+         "inputSchema": ["type": "object", "properties": [
+            "bundleId": ["type": "string"], "path": ["type": "string"], "pid": ["type": "integer"],
+            "role": ["type": "string"], "identifier": ["type": "string"], "title": ["type": "string"]]]],
+        ["name": "suggest_selectors",
+         "description": "Attach to a RUNNING app and suggest the best selector for each interactive element. Never launches.",
+         "inputSchema": ["type": "object", "properties": [
+            "bundleId": ["type": "string"], "path": ["type": "string"], "pid": ["type": "integer"]]]],
+        ["name": "lint_plan",
+         "description": "Statically check a plan (inline 'plan' object or 'path') for common mistakes. Returns findings.",
+         "inputSchema": ["type": "object", "properties": [
+            "plan": ["type": "object"], "path": ["type": "string"]]]],
     ]
 
     func respondToolText(id: Any?, text: String) {
@@ -140,8 +222,9 @@ final class MCPServer {
     }
 
     func respond(id: Any?, error: [String: Any]) {
-        var msg: [String: Any] = ["jsonrpc": "2.0", "error": error]
-        if let id { msg["id"] = id }
+        // JSON-RPC: an error response carries id null when it can't be determined,
+        // so a client can still correlate (omitting it breaks strict clients).
+        let msg: [String: Any] = ["jsonrpc": "2.0", "error": error, "id": id ?? NSNull()]
         emit(msg)
     }
 
