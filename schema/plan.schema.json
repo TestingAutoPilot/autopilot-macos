@@ -219,7 +219,8 @@
           "type": "number"
         },
         "path": {
-          "type": "string"
+          "type": "string",
+          "description": "screenshot: output PNG path. Optional — defaults to <step-id>.png inside the plan's artifacts directory."
         },
         "present": {
           "type": "boolean"
@@ -232,10 +233,12 @@
           "type": "number"
         },
         "width": {
-          "type": "integer"
+          "type": "integer",
+          "description": "assertRegion/snapshot: region width in points. screenshot (absolute-region mode): region width — all four of atX/atY/width/height must be present; any missing field silently falls back to full-display capture."
         },
         "height": {
-          "type": "integer"
+          "type": "integer",
+          "description": "assertRegion/snapshot: region height in points. screenshot (absolute-region mode): region height — see width."
         },
         "mode": {
           "enum": [
@@ -258,15 +261,17 @@
           "type": "integer"
         },
         "atX": {
-          "type": "integer"
+          "type": "integer",
+          "description": "assertPixel: absolute sample-point X when no target. screenshot (absolute-region mode): region origin X — requires atY, width, height."
         },
         "atY": {
-          "type": "integer"
+          "type": "integer",
+          "description": "assertPixel: absolute sample-point Y when no target. screenshot (absolute-region mode): region origin Y — requires atX, width, height."
         },
         "padding": {
           "type": "number",
           "minimum": 0,
-          "description": "Points of padding added around the element frame on all sides for screenshot / captureTarget captures."
+          "description": "Screen points of margin added around the AX element frame on all sides. Default 0 for the screenshot action; default 8 for captureTarget. Only applies to AX-resolved targets (vision-only matches are skipped)."
         }
       }
     },
@@ -319,7 +324,7 @@
         },
         "captureTarget": {
           "type": "boolean",
-          "description": "When true, AutoPilot saves a cropped screenshot of the step's target element (pass or fail) alongside the normal full-display failure shot. Useful for building a visual log without explicit screenshot steps."
+          "description": "When true, AutoPilot saves a cropped PNG of the step's target element as <step-id>-target.png in the artifacts dir on EVERY run (pass or fail). Only works for AX-resolved targets (vision-only matches are skipped silently). Requires Screen Recording permission; if missing, the crop is silently skipped and the step otherwise runs normally. Default padding is 8 screen points (override with args.padding). PlanLinter warns if set on a step with no target selector."
         }
       },
       "allOf": [

@@ -27,6 +27,10 @@ every run.
   is **activated** before input so keystrokes aren't dropped.
 - **Region & snapshot visual assertions** (`assertRegion` average/dominant color,
   `snapshot` reference-image diff) for robust glyph/visual-regression checks.
+- **Screenshot capture** in three modes: full display, element-scoped (crops to
+  a named AX element's frame + optional padding), or absolute region. Use the
+  `screenshot` action or add `captureTarget: true` to any step for a
+  zero-overhead visual log entry on every run. PNG files embed step metadata.
 - **Suite runner:** `autopilot run <dir>/` runs a whole directory of plans with
   one aggregate report.
 - **Authoring aids:** `dump-axtree`, `find`, `suggest`, and `lint` CLI commands.
@@ -102,7 +106,7 @@ AI agent and a human.
 macOS 14+, Swift 6 toolchain, and **Accessibility** permission granted to the
 process (or terminal) running `autopilot`. **Screen Recording** permission is
 additionally required for the visual actions (`assertPixel`/`assertRegion`/
-`snapshot`/`screenshot`). `autopilot doctor` reports both.
+`snapshot`/`screenshot`/`captureTarget`). `autopilot doctor` reports both.
 
 ## Design & roadmap
 

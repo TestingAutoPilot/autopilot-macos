@@ -113,7 +113,7 @@ Each step is one action. Common shape:
 | `scroll` | **yes** | `deltaX`/`deltaY` | Scrolls by the given pixel deltas. |
 | `drag` | **yes** (source) | `to` | Drags from the source element to `to` (a destination selector). File drag-drop (`toFiles`) is **not supported** via synthetic events — use `target.launchFiles` instead. |
 | `waitFor` | **yes** | `present` | Waits until the element appears (`present: true`, default) or disappears (`present: false`). |
-| `screenshot` | optional | `path`, `padding` | Captures to PNG. **No target** → full display. **With target** → crops to that element's frame. **With `atX/atY/width/height`** → absolute region. `padding` adds N points of context around the element (default 0). |
+| `screenshot` | optional | `path`, `padding` | Captures to PNG. Three modes — see §12. Requires Screen Recording permission (same as `assertPixel`). |
 | `assert` | **yes** | — (`assert` block) | Checks a property or presence (§4, assertions). |
 | `assertPixel` | optional | `color` (+ point) | Asserts a single screen pixel's color (visual features AX can't see). See §13. |
 | `assertRegion` | optional | `color`,`width`,`height`,`mode` | Asserts the **average** or **dominant** color over a rectangle — robust for thin glyphs where `assertPixel` is fragile. See §13. |
@@ -213,9 +213,10 @@ Each step is one action. Common shape:
 | `color` | string | `assertPixel` (expected `#RRGGBB`) |
 | `tolerance` | number | RGB distance (`assertPixel` default 16, `assertRegion` default 24) |
 | `offsetX`, `offsetY` | int | `assertPixel` (sample point = target center + offset) |
-| `atX`, `atY` | int | `assertPixel` / `screenshot` (absolute point or region origin) |
-| `width`, `height` | int | `assertRegion`, `snapshot`, `screenshot` (region size in points) |
-| `padding` | number | `screenshot` / `captureTarget` — points of space added around the element frame on all sides (default 0 for `screenshot`, 8 for `captureTarget`) |
+| `atX`, `atY` | int | `assertPixel`: absolute sample point when no target. `screenshot`: origin of the absolute-region crop (requires `width` + `height`; all four must be present) |
+| `width`, `height` | int | `assertRegion`, `snapshot`: region size. `screenshot` (absolute-region mode): region size — all four of `atX/atY/width/height` are required; any missing field silently falls back to full display |
+| `path` | string | `screenshot` output path. Optional — defaults to `<step-id>.png` inside the plan's artifacts directory |
+| `padding` | number | Points of margin added around the element frame on all sides. Default **0** for the `screenshot` action, **8** for `captureTarget`. Shared field; per-action defaults differ |
 
 ### Assertions
 
@@ -522,6 +523,7 @@ depth-limited. The host plan's `target`/`defaults` win.
 The sections below cover the rest of the toolset — read these before authoring
 anything beyond a basic click/type/assert plan:
 
+- **§12a — Screenshot reference** (element-scoped, region, captureTarget).
 - **§13 / §20 — Visual assertions** (`assertPixel`, `assertRegion`, `snapshot`)
   for colors and regions the Accessibility API can't see.
 - **§14 — Output & reports** (stdout, `report.json`, artifacts, exit codes,
@@ -535,6 +537,92 @@ The pre-flight checklist is at the very end (§22).
 
 ---
 
+## 12a. Screenshot quick reference
+
+> **Screen Recording permission required** — same permission as `assertPixel`.
+> Without it, `screenshot` steps succeed but write nothing, and `captureTarget`
+> silently skips. Run `autopilot doctor` to check.
+
+### Three modes for the `screenshot` action
+
+| Mode | How to trigger | What gets captured |
+|---|---|---|
+| **Full display** | No `target`, no `atX/atY` | Entire main display |
+| **Element-scoped** | Set `target` selector | That element's AX frame ± `padding` pts (default 0) |
+| **Absolute region** | Set `atX`, `atY`, `width`, `height` (all four required) | That rectangle in screen points |
+
+**Precedence:** if both `target` and `atX/atY/width/height` are present, the
+`target` path takes priority and the absolute-region fields are ignored.
+
+**Unresolved target fallback:** if `target` is set but the element cannot be
+resolved (timeout, ambiguous, app hung), the step does **not** fail — it falls
+back to a full-display capture and sets `result.message` to
+`"target did not resolve; fell back to full display"`. The step still returns
+`.pass` if capture succeeds. Check `message` in `report.json` if you need to
+detect this.
+
+**Vision targets:** element-scoped capture only works for AX-resolved targets
+(selector resolves to a real `AXUIElement`). If your selector uses a `vision`
+block and the element is found only via image template matching (returning a
+screen point, not an AX element), the screenshot falls back to full display.
+
+**`path`** is optional — defaults to `<step-id>.png` inside the plan's
+artifacts directory. Omitting it is usually the right call.
+
+```jsonc
+// Full display
+{ "id": "state", "action": "screenshot" }
+
+// Element-scoped — the Save sheet + 16 pt breathing room
+{ "id": "save-sheet", "action": "screenshot",
+  "target": { "identifier": "saveSheet" }, "args": { "padding": 16 } }
+
+// Absolute region (toolbar strip)
+{ "id": "toolbar", "action": "screenshot",
+  "args": { "atX": 0, "atY": 0, "width": 800, "height": 44 } }
+
+// Custom output path
+{ "id": "before", "action": "screenshot", "args": { "path": "/tmp/before.png" } }
+```
+
+### `captureTarget` — visual log without extra steps
+
+Add `"captureTarget": true` to **any step that has a `target`**. AutoPilot
+saves a cropped screenshot of that element as `<step-id>-target.png` in the
+artifacts dir on **every run** — pass or fail.
+
+```jsonc
+{ "id": "check-label", "action": "assert",
+  "target": { "identifier": "statusLabel" },
+  "assert": { "property": "value", "op": "equals", "expected": "Ready" },
+  "captureTarget": true }
+```
+
+**Defaults and rules:**
+- `args.padding` controls the margin added around the element (default **8** for
+  `captureTarget`, **0** for the `screenshot` action).
+- Only AX-resolved targets produce a crop. Vision-only matches are skipped silently.
+- Requires Screen Recording permission; if missing, the crop is silently skipped
+  and the step otherwise runs normally.
+- `report.json`'s `screenshot` field points to the full-display failure shot
+  (written on error/fail). The `<id>-target.png` is always written to disk but
+  is not surfaced in that field unless no failure shot exists.
+- PlanLinter warns if `captureTarget: true` is set on a step with no `target`.
+
+### PNG metadata
+
+Every AutoPilot screenshot embeds `tEXt` metadata chunks — useful when the PNG
+lands in an artifacts folder without `report.json`:
+
+| Key | Value |
+|---|---|
+| `autopilot-step` | Step ID |
+| `autopilot-plan` | Plan name |
+| `autopilot-action` | Action name (e.g. `screenshot`, `assert`) |
+| `autopilot-result` | `pass` or `fail` |
+
+---
+
 ## 13. Pixel-color assertion (`assertPixel`) — testing visual features
 
 Some of the most important things in an app are **invisible to the Accessibility
@@ -543,9 +631,11 @@ the line-number gutter. These are drawn pixels, not AX elements. `assertPixel`
 lets you verify them by sampling a screen pixel's color.
 
 > **Permission:** the visual actions (`assertPixel`/`assertRegion`/`snapshot`/
-> `screenshot`) require **Screen Recording** permission (separate from
-> Accessibility). Without it these steps return a clear `.error` — run
-> `autopilot doctor` to check. Capture uses ScreenCaptureKit at point resolution.
+> `screenshot`/`captureTarget`) require **Screen Recording** permission (separate
+> from Accessibility). Without it, assert steps return a clear `.error`; for
+> `screenshot` and `captureTarget`, capture silently produces nothing (the step
+> still passes). Run `autopilot doctor` to check. Capture uses ScreenCaptureKit
+> at point resolution.
 
 ```jsonc
 // Sample at a target element's center, offset by (dx, dy):
