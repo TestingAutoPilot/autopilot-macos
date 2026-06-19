@@ -63,15 +63,15 @@ Save this plan as `calculator-smoke.json`:
     { "id": "wait-window", "action": "waitFor",
       "target": { "role": "AXWindow" } },
     { "id": "press-1",   "action": "click",
-      "target": { "identifier": "1" } },
+      "target": { "identifier": "One" } },
     { "id": "press-plus","action": "click",
-      "target": { "identifier": "add" } },
+      "target": { "identifier": "Add" } },
     { "id": "press-2",   "action": "click",
-      "target": { "identifier": "2" } },
+      "target": { "identifier": "Two" } },
     { "id": "press-eq",  "action": "click",
-      "target": { "identifier": "equal" } },
+      "target": { "identifier": "Equals" } },
     { "id": "check-result", "action": "assert",
-      "target": { "role": "AXStaticText", "identifier": "display" },
+      "target": { "role": "AXStaticText", "within": { "identifier": "StandardResultView" } },
       "assert": { "property": "value", "op": "equals", "expected": "3" } },
     { "id": "done", "action": "terminate" }
   ]
@@ -102,7 +102,7 @@ For a guided walkthrough, read the **[User Manual](docs/MANUAL.md)**.
 | `press` | yes | — | AX press action. More robust than a coordinate click. Prefer for buttons. |
 | `type` | yes | `text`, `clear`, `commit` | Focus the element and type text. |
 | `waitFor` | yes | `present` | Wait until the element appears or disappears. |
-| `assert` | yes | `property`, `op`, `expected` | Check a property value (`equals`, `contains`, `startsWith`, …). |
+| `assert` | yes | `property`, `op`, `expected` | Check a property value (`equals`, `contains`, `matches`, …). |
 | `terminate` | no | — | Quit the target app. Add as the last step to avoid leaked instances. |
 
 Full action reference, selector syntax, visual assertions, and suite-runner docs: **[docs/AUTHORING.md](docs/AUTHORING.md)**.

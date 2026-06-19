@@ -85,15 +85,15 @@ Save this plan as `calculator-smoke.json`:
     { "id": "wait-window", "action": "waitFor",
       "target": { "role": "AXWindow" } },
     { "id": "press-1",   "action": "click",
-      "target": { "identifier": "1" } },
+      "target": { "identifier": "One" } },
     { "id": "press-plus","action": "click",
-      "target": { "identifier": "add" } },
+      "target": { "identifier": "Add" } },
     { "id": "press-2",   "action": "click",
-      "target": { "identifier": "2" } },
+      "target": { "identifier": "Two" } },
     { "id": "press-eq",  "action": "click",
-      "target": { "identifier": "equal" } },
+      "target": { "identifier": "Equals" } },
     { "id": "check-result", "action": "assert",
-      "target": { "role": "AXStaticText", "identifier": "display" },
+      "target": { "role": "AXStaticText", "within": { "identifier": "StandardResultView" } },
       "assert": { "property": "value", "op": "equals", "expected": "3" } },
     { "id": "done", "action": "terminate" }
   ]
@@ -114,7 +114,7 @@ RESULT pass 7/7
 
 **If it fails:**
 - `error: Accessibility permission not granted` — you must grant Accessibility to the terminal app running the command, not just allow it in a dialog. Open System Settings → Privacy & Security → Accessibility and add the correct app.
-- Element not found on `press-1` — Calculator's button identifiers (`"1"`, `"add"`, `"equal"`) are correct for macOS 14+. On older versions the identifiers may differ. Run `autopilot dump-axtree com.apple.calculator` with Calculator open to see the actual identifiers.
+- Element not found on `press-1` — Calculator's button identifiers (`"One"`, `"Add"`, `"Equals"`) are correct for macOS 14+. On older versions the identifiers may differ. Run `autopilot dump-axtree com.apple.calculator` with Calculator open to see the actual identifiers.
 
 **The `target.attach` option:** if you need to drive an already-running app instance without relaunching it (for example, to capture a specific UI state you set up manually), add `"attach": true` to the `target` block. AutoPilot attaches to the frontmost matching instance and fails immediately if none is running.
 
@@ -162,7 +162,7 @@ The executor knows nothing about your app beyond what the plan and the live AX t
 
 ```json
 { "id": "press-1", "action": "click",
-  "target": { "identifier": "1" } }
+  "target": { "identifier": "One" } }
 ```
 
 - `action: "click"` sends a single left click to the element's center.
@@ -170,7 +170,7 @@ The executor knows nothing about your app beyond what the plan and the live AX t
 
 ```json
 { "id": "check-result", "action": "assert",
-  "target": { "role": "AXStaticText", "identifier": "display" },
+  "target": { "role": "AXStaticText", "within": { "identifier": "StandardResultView" } },
   "assert": { "property": "value", "op": "equals", "expected": "3" } }
 ```
 
@@ -340,8 +340,6 @@ Every `assert` step has an `assert` block with three fields: `property`, `op`, a
 | `equals` | Exact string match | yes |
 | `notEquals` | Not equal | yes |
 | `contains` | Substring | yes |
-| `startsWith` | Prefix match | yes |
-| `endsWith` | Suffix match | yes |
 | `matches` | NSRegularExpression pattern | yes |
 | `greaterThan` | Numeric `>` (parsed as Double) | yes |
 | `lessThan` | Numeric `<` | yes |

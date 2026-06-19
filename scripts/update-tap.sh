@@ -12,6 +12,11 @@ VERSION="${1:?usage: scripts/update-tap.sh <version> <sha256> <arch>}"
 SHA256="${2:?}"
 ARCH="${3:?}"   # arm64 or x86_64
 
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: VERSION must be in N.N.N format, got: $VERSION" >&2
+  exit 1
+fi
+
 TAP_REPO="${TAP_REPO:?TAP_REPO env var must point to homebrew-autopilot git URL}"
 OWNER="jschwefel-CBB"   # update if repo owner changes
 URL="https://github.com/${OWNER}/autopilot/releases/download/v${VERSION}/autopilot-${VERSION}-${ARCH}.tar.gz"
@@ -44,12 +49,16 @@ import sys, re
 formula, url, sha = sys.argv[1], sys.argv[2], sys.argv[3]
 text = open(formula).read()
 # Replace the url line inside on_arm do...end
-text = re.sub(
+text, n = re.subn(
   r'(on_arm do\s+url ")([^"]+)(")',
   lambda m: m.group(1) + url + m.group(3), text)
-text = re.sub(
+if n == 0:
+    sys.exit(f"ERROR: pattern did not match in formula: on_arm url")
+text, n = re.subn(
   r'(on_arm do\s+url "[^"]+"\s+sha256 ")([a-f0-9]+)(")',
   lambda m: m.group(1) + sha + m.group(3), text, flags=re.DOTALL)
+if n == 0:
+    sys.exit(f"ERROR: pattern did not match in formula: on_arm sha256")
 open(formula, 'w').write(text)
 print("arm64 url+sha updated")
 PY
@@ -58,12 +67,16 @@ else
 import sys, re
 formula, url, sha = sys.argv[1], sys.argv[2], sys.argv[3]
 text = open(formula).read()
-text = re.sub(
+text, n = re.subn(
   r'(on_intel do\s+url ")([^"]+)(")',
   lambda m: m.group(1) + url + m.group(3), text)
-text = re.sub(
+if n == 0:
+    sys.exit(f"ERROR: pattern did not match in formula: on_intel url")
+text, n = re.subn(
   r'(on_intel do\s+url "[^"]+"\s+sha256 ")([a-f0-9]+)(")',
   lambda m: m.group(1) + sha + m.group(3), text, flags=re.DOTALL)
+if n == 0:
+    sys.exit(f"ERROR: pattern did not match in formula: on_intel sha256")
 open(formula, 'w').write(text)
 print("x86_64 url+sha updated")
 PY
