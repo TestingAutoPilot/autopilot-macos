@@ -163,7 +163,7 @@ Each step is one action. Common shape:
 { "id": "checked", "action": "assert", "target": { "identifier": "wrapMenuItem" },
   "assert": { "property": "marked", "op": "equals", "expected": "true" } }
 { "id": "barGone", "action": "assert", "target": { "identifier": "findField" },
-  "assert": { "property": "exists", "op": "notExists" } }
+  "assert": { "property": "value", "op": "notExists" } }
 
 // waitFor (appear / disappear) and screenshot
 { "id": "appear", "action": "waitFor", "target": { "identifier": "sheet" },
@@ -192,7 +192,7 @@ Each step is one action. Common shape:
 | `path` | string | `screenshot` (output PNG path) |
 | `present` | bool | `waitFor` (true = appears, false = disappears) |
 | `color` | string | `assertPixel` (expected `#RRGGBB`) |
-| `tolerance` | number | `assertPixel` (RGB distance, default 16) |
+| `tolerance` | number | RGB distance (`assertPixel` default 16, `assertRegion` default 24) |
 | `offsetX`, `offsetY` | int | `assertPixel` (sample point = target center + offset) |
 | `atX`, `atY` | int | `assertPixel` (absolute sample point when no target) |
 
@@ -207,8 +207,12 @@ An `assert` step carries an `assert` block instead of (or alongside) plain args:
 ```
 
 **Properties** (`assert.property`): `value`, `title`, `enabled`, `focused`,
-`position`, `size`, `exists`, `marked` (menu-item checkmark state — `"true"`/
-`"false"` from `AXMenuItemMarkChar`; the one observable signal of menu state).
+`position`, `size`, `marked` (menu-item checkmark — `"true"`/`"false"` from
+`AXMenuItemMarkChar`), and `count` (the **number of elements** matching the
+selector — for collections; use with `equals`/`greaterThan`/`lessThan`, e.g.
+`{ "property": "count", "op": "greaterThan", "expected": "1" }`). Presence is
+checked with the `exists`/`notExists` **ops** (any property), not an `exists`
+property.
 
 **Operators** (`assert.op`):
 
@@ -250,8 +254,8 @@ Examples: `"cmd+s"`, `"shift+cmd+a"`, `"cmd+f"`, `"cmd+,"` (Preferences),
 `"escape"`, `"cmd+pagedown"`.
 
 An unsupported key throws a distinct `unsupportedKey` error (not confused with a
-malformed-JSON parse error). The `+` key itself cannot be expressed in a chord
-(it is the separator).
+malformed-JSON parse error). The `+` key is spelled **`plus`** (it is the chord
+separator), e.g. `"cmd+plus"` for zoom-in.
 
 ---
 
@@ -273,8 +277,8 @@ AX-subtree dump so you can fix it).
 | `vision` | ✅ works | Pixel-template fallback (§7). |
 | `index` | ✅ works | When the predicates match multiple elements, pick the nth (0-based) instead of erroring. A disambiguator of last resort — prefer an `identifier`. |
 | `within` | ✅ works | Scope the search to inside a separately-resolved parent, e.g. `{"role":"AXButton","within":{"role":"AXRow","index":0}}`. |
-| `label` | ⚠️ **not functional** | Declared in the schema but never populated during matching — a `label` selector will never match. Do not use it; use `title` or `identifier`. |
-| `path` | ⚠️ **not functional** | Declared in the schema but the resolver does not consult it — silently ignored. Do not rely on it. |
+| `label` | ❌ **rejected** | A `label` selector is a hard parse error (it never matched anything). Use `title` or `identifier`. |
+| `path` | ❌ **rejected** | A `path` selector is a hard parse error (never consulted). Use `identifier`/`role`/`title`/`value` + `index`/`within`. |
 
 > If you need to target something that only has a `label`/`path`, the right fix
 > is to add an `AXIdentifier` to that control in the app (see §8), not to use the
@@ -517,6 +521,11 @@ API**: syntax-highlight colors, rainbow-bracket depth coloring, theme appearance
 the line-number gutter. These are drawn pixels, not AX elements. `assertPixel`
 lets you verify them by sampling a screen pixel's color.
 
+> **Permission:** the visual actions (`assertPixel`/`assertRegion`/`snapshot`/
+> `screenshot`) require **Screen Recording** permission (separate from
+> Accessibility). Without it these steps return a clear `.error` — run
+> `autopilot doctor` to check. Capture uses ScreenCaptureKit at point resolution.
+
 ```jsonc
 // Sample at a target element's center, offset by (dx, dy):
 { "id": "bracket-is-gold", "action": "assertPixel",
@@ -529,7 +538,7 @@ lets you verify them by sampling a screen pixel's color.
 ```
 
 - `color` is the expected `#RRGGBB`. The match is a deterministic Euclidean RGB
-  distance ≤ `tolerance` (default 16) — **no LLM**.
+  distance ≤ `tolerance` (`assertPixel` default 16; `assertRegion` default 24) — **no LLM**.
 - The sample point is `target` center + `(offsetX, offsetY)`, or absolute
   `(atX, atY)` when no `target` is given.
 - It **polls**, so a color that settles a frame after the action still passes.
@@ -582,7 +591,7 @@ RESULT fail 3/4 (failed: assert-value)
 {
   "plan": "…", "result": "fail", "durationMs": 434,
   "artifactsDir": "/…/artifacts/my-plan",
-  "permissions": { "accessibility": true, "automation": true },
+  "permissions": { "accessibility": true, "screenRecording": true },
   "steps": [
     { "id": "type", "result": "pass", "durationMs": 108 },
     { "id": "assert-value", "result": "fail",

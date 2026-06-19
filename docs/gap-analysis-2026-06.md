@@ -4,6 +4,15 @@ HEAD 730f6d3. The top P0/P1 findings were additionally spot-verified by hand
 against source. This is an analysis artifact — NOT a changelog; nothing here is
 implemented yet. -->
 
+<!-- STATUS UPDATE: All actionable findings in this analysis have since been
+implemented (P0 screen-capture migration; the P1 suite/action/within/vision
+fixes; and the P2/NICE batch — liveness bounds, error surfacing, validation
+completeness, MCP parity, schema hardening, count assertion, MCP+vision+action
+test coverage). See git history after HEAD 730f6d3. Retained as the analysis
+record. -->
+
+
+
 # AutoPilot — Final Gap Analysis
 
 HEAD `730f6d3` · 33 source files · ~2,650 LOC · 98 tests green. Findings below are deduplicated, grouped by theme, and ordered by severity then impact. Severities use the supplied scale (P0 > P1 > P2 > NICE).

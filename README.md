@@ -99,8 +99,10 @@ AI agent and a human.
 
 ## Requirements
 
-macOS 14+, Swift 6 toolchain, and Accessibility permission granted to the
-process (or terminal) running `autopilot` — `autopilot doctor` checks this.
+macOS 14+, Swift 6 toolchain, and **Accessibility** permission granted to the
+process (or terminal) running `autopilot`. **Screen Recording** permission is
+additionally required for the visual actions (`assertPixel`/`assertRegion`/
+`snapshot`/`screenshot`). `autopilot doctor` reports both.
 
 ## Design & roadmap
 
