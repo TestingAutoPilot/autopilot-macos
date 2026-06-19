@@ -1,14 +1,16 @@
 # AutoPilot
 
-A deterministic, app-agnostic macOS GUI test driver. It executes declarative
-JSON test plans against any Mac app via the Accessibility API — no LLM in the
-execution path, so the same plan + same app build produces the same result
-every run.
+Declarative macOS GUI testing via the Accessibility API. No LLM in the execution path.
 
-> The product is **AutoPilot**. The CLI binary, Swift targets, and repository
-> use lowercase/`Autopilot` spellings (`autopilot`, `AutopilotCore`,
-> `AutopilotMCP`) — those are technical identifiers and are intentionally left
-> as-is.
+![CI](https://github.com/jschwefel-CBB/autopilot/actions/workflows/ci.yml/badge.svg)
+
+## What it does
+
+- Test any Mac app without touching its source code. Write a JSON plan; AutoPilot drives the app via the Accessibility API and reports pass/fail.
+- Plans are deterministic contracts. The same plan plus the same app build produces the same result every run.
+- Targets UI elements by AX identifier, role, or title. Falls back to normalized cross-correlation template matching for custom-drawn controls the Accessibility API cannot see.
+- Asserts element properties, pixel colors, region colors, and snapshot diffs for full visual coverage.
+- Runs a whole directory of plans in one command and produces an aggregate report.
 
 ## Install
 
@@ -30,7 +32,7 @@ tar -xzf autopilot-<version>-arm64.tar.gz
 sudo mv autopilot AutopilotMCP /usr/local/bin/
 ```
 
-On first launch macOS may show a Gatekeeper warning — right-click the binary in Finder and choose Open, or run:
+On first launch macOS may show a Gatekeeper warning. Clear the quarantine attribute:
 
 ```bash
 xattr -d com.apple.quarantine /usr/local/bin/autopilot
@@ -48,117 +50,100 @@ swift build -c release
 
 Requires Xcode 16+ (Swift 6 toolchain) and macOS 14+.
 
-## What it does
-
-- Drives any macOS app: launch, click, **press**, **menu**, type, key chords,
-  **drag**, scroll, wait, assert.
-- **Plan-as-contract:** an offline author (agent or human) writes a JSON plan;
-  the executor runs it mechanically and reports structured results + failure
-  artifacts (screenshots, AX-tree snapshots).
-- **AX-first targeting** with a deterministic vision fallback (normalized
-  cross-correlation template match) for custom-drawn controls.
-- **Pixel-color assertions** for visual features the Accessibility API can't see
-  (syntax colors, rainbow brackets, gutters).
-- **Menu-bar navigation** drives commands with no key equivalent; reads menu
-  checkmark state.
-- Value assertions **poll** until they match (no flaky one-shot reads); the app
-  is **activated** before input so keystrokes aren't dropped.
-- **Region & snapshot visual assertions** (`assertRegion` average/dominant color,
-  `snapshot` reference-image diff) for robust glyph/visual-regression checks.
-- **Screenshot capture** in three modes: full display, element-scoped (crops to
-  a named AX element's frame + optional padding), or absolute region. Use the
-  `screenshot` action or add `captureTarget: true` to any step for a
-  zero-overhead visual log entry on every run. PNG files embed step metadata.
-- **Suite runner:** `autopilot run <dir>/` runs a whole directory of plans with
-  one aggregate report.
-- **Authoring aids:** `dump-axtree`, `find`, `suggest`, and `lint` CLI commands.
-- Selector disambiguators: `index` (nth match) and `within` (parent scoping).
-- Two front-ends over one shared core: a **CLI** and an **MCP server**
-  (`run_plan`, `get_report`, `dump_axtree`).
-- Plan composition via `include`; per-plan artifact namespacing; reliable
-  back-to-back relaunch.
-- **Attach mode** (`target.attach: true`): drive an already-running instance
-  without a terminate-relaunch, for documentation-capture and transient-state
-  workflows where you have arranged the app before the plan runs.
-
-## Layout
-
-```
-Sources/
-  AutopilotCore/      engine: plan parser, targeting, actions, assertions, reporter
-  autopilot/          CLI executable
-  AutopilotMCP/       MCP server (run_plan, get_report, dump_axtree)
-Tests/AutopilotCoreTests/
-Fixtures/TestHostApp/  tiny AppKit app with known AX identifiers, for self-testing
-```
-
 ## Quick start
 
-```bash
-swift build
-.build/debug/autopilot doctor                       # check Accessibility permission
-.build/debug/autopilot run plan.json --artifacts ./out
-.build/debug/autopilot run uitests/ --artifacts ./out   # run a whole directory (suite)
-```
-
-Exit codes: `0` pass, `1` test failure/error, `2` plan/parse error, `3` permission missing.
-
-### Commands
-
-| Command | What it does |
-|---|---|
-| `run <plan.json\|dir>` | Run a plan, or every plan in a directory (sequential, aggregate report). |
-| `doctor` | Check the Accessibility permission. |
-| `lint <plan\|dir>` | Static checks: non-functional selectors, missing terminate/window-wait, missing required args. |
-| `dump-axtree <app> [--interactive-only]` | Print an app's AX tree to discover selectors. |
-| `find <app> --identifier/--role/--title` | Show what a selector resolves to. |
-| `suggest <app>` | Suggest the best selector for each interactive element. |
-
-`run` flags: `--artifacts <dir>`, `--keep-going` (continue past failures),
-`--json` (emit report JSON), `--update-snapshots` (write/refresh `snapshot`
-reference images — a missing reference otherwise **fails**).
-
-`<app>` is a bundle id (`com.example.app`) or a path to a `.app` bundle.
-
-**Writing plans:** see **[docs/AUTHORING.md](docs/AUTHORING.md)** — the complete
-plan-authoring guide (actions, assertions, selectors, discovery, hygiene
-patterns, and a worked end-to-end example). Written to be usable by both an
-AI agent and a human.
-
-## Plan example
+Save this plan as `calculator-smoke.json`:
 
 ```json
 {
   "schemaVersion": "1.0",
-  "name": "click OK and verify count",
-  "target": { "bundleId": "com.example.app" },
-  "defaults": { "timeoutMs": 4000, "retryIntervalMs": 100 },
+  "name": "calculator-smoke",
+  "target": { "bundleId": "com.apple.calculator" },
   "steps": [
-    { "id": "click", "action": "click", "target": { "identifier": "okButton" } },
-    { "id": "check", "action": "assert", "target": { "identifier": "countLabel" },
-      "assert": { "property": "value", "op": "contains", "expected": "count: 1" } },
-    { "id": "quit", "action": "terminate" }
+    { "id": "wait-window", "action": "waitFor",
+      "target": { "role": "AXWindow" } },
+    { "id": "press-1",   "action": "click",
+      "target": { "identifier": "1" } },
+    { "id": "press-plus","action": "click",
+      "target": { "identifier": "add" } },
+    { "id": "press-2",   "action": "click",
+      "target": { "identifier": "2" } },
+    { "id": "press-eq",  "action": "click",
+      "target": { "identifier": "equal" } },
+    { "id": "check-result", "action": "assert",
+      "target": { "role": "AXStaticText", "identifier": "display" },
+      "assert": { "property": "value", "op": "equals", "expected": "3" } },
+    { "id": "done", "action": "terminate" }
   ]
 }
 ```
 
+Run it:
+
+```bash
+autopilot run calculator-smoke.json --artifacts /tmp/autopilot-demo
+```
+
+Expected output:
+
+```
+RESULT pass 7/7
+```
+
+Calculator is pre-installed on every Mac, so this plan runs immediately with no setup beyond granting Accessibility permission.
+
+## Plan format at a glance
+
+| Action | Needs `target`? | Key args | What it does |
+|---|---|---|---|
+| `click` | yes | — | Single left click at the element's center. |
+| `press` | yes | — | AX press action. More robust than a coordinate click. Prefer for buttons. |
+| `type` | yes | `text`, `clear`, `commit` | Focus the element and type text. |
+| `waitFor` | yes | `present` | Wait until the element appears or disappears. |
+| `assert` | yes | `property`, `op`, `expected` | Check a property value (`equals`, `contains`, `startsWith`, …). |
+| `terminate` | no | — | Quit the target app. Add as the last step to avoid leaked instances. |
+
+Full action reference, selector syntax, visual assertions, and suite-runner docs: **[docs/AUTHORING.md](docs/AUTHORING.md)**.
+
+## MCP server
+
+AutoPilot ships an MCP server (`AutopilotMCP`) that exposes the test engine to AI agents.
+
+Wire it to Claude Desktop by adding this to your `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "autopilot": { "command": "/usr/local/bin/AutopilotMCP" } } }
+```
+
+The server exposes 6 tools:
+
+| Tool | What it does |
+|---|---|
+| `run_plan` | Run a JSON plan (inline or from a file path) and return structured results. |
+| `get_report` | Fetch the last run's report JSON, including per-step outcomes and artifact paths. |
+| `dump_axtree` | Dump an app's AX tree so an agent can discover selectors. |
+| `find_element` | Resolve a selector against a running app and report what it matches. |
+| `suggest_selectors` | Suggest the best selector for each interactive element in a running app. |
+| `lint_plan` | Static-check a plan for non-functional selectors, missing terminate, and missing required args. |
+
+## Permissions
+
+AutoPilot requires two macOS permissions:
+
+**Accessibility** — required for all plans. Grants read/write access to the UI element tree. Grant it to Terminal (or your CI runner) in System Settings → Privacy & Security → Accessibility.
+
+**Screen Recording** — required for visual actions: `assertPixel`, `assertRegion`, `snapshot`, `screenshot`, and `captureTarget`. Grant it in System Settings → Privacy & Security → Screen Recording.
+
+Run `autopilot doctor` at any time to check the status of both permissions.
+
 ## Requirements
 
-macOS 14+, Swift 6 toolchain, and **Accessibility** permission granted to the
-process (or terminal) running `autopilot`. **Screen Recording** permission is
-additionally required for the visual actions (`assertPixel`/`assertRegion`/
-`snapshot`/`screenshot`/`captureTarget`). `autopilot doctor` reports both.
+- macOS 14 or later.
+- Swift 6 toolchain (Xcode 16+) — required only when building from source. The Homebrew and direct-download binaries are pre-built.
+- No App Sandbox. AutoPilot drives other apps via the Accessibility API, which is incompatible with the sandbox.
 
-## Design & roadmap
+## Contributing / license
 
-- **Authoring guide:** [docs/AUTHORING.md](docs/AUTHORING.md) — how to write plans
-  (actions, assertions, selectors, suite runner, visual assertions, CLI, troubleshooting).
-- **Plan schema:** [schema/plan.schema.json](schema/plan.schema.json) — point your
-  editor at it for autocomplete/validation.
-- **CI & releases:** [docs/CI.md](docs/CI.md).
-- **Roadmap:** [docs/ROADMAP.md](docs/ROADMAP.md) — candidate work for future versions.
-- **Consumer feedback & dispositions:** [docs/feedback-response.md](docs/feedback-response.md),
-  [docs/review-findings.md](docs/review-findings.md).
-- Original design spec and implementation plan live in the companion `medit` repo
-  (`docs/specs/2026-06-16-gui-test-driver-design.md`,
-  `docs/plans/2026-06-16-autopilot.md`).
+Contributions are welcome. Open an issue or pull request against [jschwefel-CBB/autopilot](https://github.com/jschwefel-CBB/autopilot). For significant changes, open an issue first to discuss scope.
+
+Released under the MIT license.
