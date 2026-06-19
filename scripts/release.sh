@@ -1,39 +1,51 @@
 #!/bin/bash
-# Build a release binary of the `autopilot` CLI and stage it for a GitHub release.
+# Build a release of the autopilot CLI + AutopilotMCP MCP server.
 #
-# Usage:  scripts/release.sh <version>      e.g. scripts/release.sh 1.0.0
+# Usage: scripts/release.sh <version>
+#   e.g. scripts/release.sh 1.0.0
 #
-# This produces a release build and a tar.gz under dist/. Creating the actual
-# GitHub release / tag is left to you (requires push + `gh release create`),
-# so this script never performs an irreversible publish on its own.
+# Produces dist/autopilot-<version>-<arch>.tar.gz containing both binaries.
+# Printing the SHA-256 of each tarball to stdout so callers can embed it.
+#
+# Signing is ad-hoc (codesign -s -). For notarization with a real Developer ID,
+# use scripts/notarize.sh after this script.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${1:?usage: scripts/release.sh <version>}"
-NAME="autopilot"
+ARCH="$(uname -m)"   # arm64 or x86_64
 DIST="dist"
 
-echo "Building release ($VERSION)…"
+echo "==> Building release binaries (${VERSION}, ${ARCH})…"
 swift build -c release
 
-BIN="$(swift build -c release --show-bin-path)/$NAME"
-[ -x "$BIN" ] || { echo "build did not produce $BIN" >&2; exit 1; }
+BIN_PATH="$(swift build -c release --show-bin-path)"
+AUTOPILOT="${BIN_PATH}/autopilot"
+MCP="${BIN_PATH}/AutopilotMCP"
+for f in "$AUTOPILOT" "$MCP"; do
+  [ -x "$f" ] || { echo "ERROR: expected binary not found: $f" >&2; exit 1; }
+done
 
 rm -rf "$DIST"; mkdir -p "$DIST"
-cp "$BIN" "$DIST/$NAME"
-# Ad-hoc sign so Gatekeeper accepts the standalone binary.
-codesign --force --sign - "$DIST/$NAME" >/dev/null 2>&1 || true
+cp "$AUTOPILOT" "$DIST/autopilot"
+cp "$MCP"        "$DIST/AutopilotMCP"
 
-TARBALL="$DIST/${NAME}-${VERSION}-$(uname -m).tar.gz"
-tar -czf "$TARBALL" -C "$DIST" "$NAME"
-echo "Staged: $TARBALL"
+echo "==> Signing (ad-hoc)…"
+codesign --force --sign - "$DIST/autopilot"
+codesign --force --sign - "$DIST/AutopilotMCP"
 
-cat <<EOF
+TARBALL="${DIST}/autopilot-${VERSION}-${ARCH}.tar.gz"
+echo "==> Packaging → ${TARBALL}"
+tar -czf "$TARBALL" -C "$DIST" autopilot AutopilotMCP
 
-Next steps (manual — these publish, so they are NOT run automatically):
-  git tag v$VERSION && git push origin v$VERSION
-  gh release create v$VERSION "$TARBALL" --title "v$VERSION" --notes "…"
-
-For a Homebrew formula, point it at the released tarball URL + its sha256:
-  shasum -a 256 "$TARBALL"
-EOF
+SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
+echo "==> SHA-256: ${SHA}"
+echo ""
+echo "Artifact:  ${TARBALL}"
+echo "SHA-256:   ${SHA}"
+echo ""
+echo "Next steps (manual — these publish):"
+echo "  1. Notarize (if Developer ID):  scripts/notarize.sh $TARBALL"
+echo "  2. Tag:  git tag v${VERSION} && git push origin v${VERSION}"
+echo "  3. Create release:  gh release create v${VERSION} ${TARBALL} --title \"v${VERSION}\""
+echo "  4. Update tap:  scripts/update-tap.sh ${VERSION} ${SHA} ${ARCH}"
