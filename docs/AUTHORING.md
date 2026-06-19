@@ -761,14 +761,26 @@ Beyond `run`:
 
 ```bash
 autopilot doctor                       # check Accessibility permission (exit 3 if missing)
-autopilot dump-axtree <app> [--interactive-only]   # print the AX tree to discover selectors
+autopilot dump-axtree <app> [--pid N] [--interactive-only]   # print the AX tree to discover selectors
 autopilot find <app> --identifier foo  # show what a selector resolves to (and how many)
 autopilot suggest <app>                # suggest the best selector for each interactive element
 autopilot lint <plan|dir>              # flag non-functional label/path, missing terminate/window-wait
 ```
 
-`<app>` is a bundle id (`com.example.app`) or a path to a `.app` bundle. These
-drive a live app, so they need the Accessibility permission (`doctor` checks it).
+> **Inspect vs. run — important.** `run` **launches a fresh instance** (a test
+> wants a clean app). The inspection commands (`dump-axtree`, `find`, `suggest`)
+> do the opposite: they **attach to the already-running instance** and never
+> launch or terminate it — so they show you the app exactly as it is on screen.
+> If nothing matching is running, they say so (they do **not** return a blank
+> tree). `<app>` is a bundle id or `.app` path → the **frontmost** running
+> instance; pass `--pid N` to inspect a specific process unambiguously. The dump
+> includes the `pid` and `appName` so you can confirm you inspected the right one.
+
+All inspection commands need the Accessibility permission (`doctor` checks it).
+
+> **MCP:** the `dump_axtree` tool attaches the same way — `{"bundleId":…}`,
+> `{"path":…}`, or `{"pid":N}` — and errors with "No running instance …" rather
+> than returning fabricated data.
 
 > **Editor schema:** point your editor at `schema/plan.schema.json` for plan
 > autocomplete and validation (see `docs/CI.md`).

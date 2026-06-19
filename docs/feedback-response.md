@@ -218,7 +218,7 @@ menu opened; file drag-drop unsupported; non-ANSI characters via fallback).
 
 ---
 
-## Round 4 (medit v2 retest) — disposition — **NOT YET IMPLEMENTED**
+## Round 4 (medit v2 retest) — disposition — **IMPLEMENTED**
 
 > medit labels this "Round 3" in its own doc, but it is chronologically the
 > *fourth* report (after the NSSearchField Round 3 above) — filed against
@@ -229,8 +229,8 @@ Both findings were **re-verified against AutoPilot source** and are accurate.
 
 | # | Finding | Severity | Verified | Decision |
 |---|---|---|---|---|
-| R4-1 | `dump_axtree` (and `find`/`suggest`/`run` by bundleId) reports a phantom window — it does not attach to the running instance | **P0** | ✅ confirmed in source | **FIX — accept** |
-| R4-2 | `run` with `path` + `launchFiles` opened the file in the OS default handler, not the target app | P1 | plausible (NSWorkspace) | **INVESTIGATE** |
+| R4-1 | `dump_axtree` (and `find`/`suggest`) reports a phantom window — it does not attach to the running instance | **P0** | ✅ confirmed in source | **FIXED** — inspection commands now attach (by frontmost bundleId or `--pid`/`{pid}`), never launch/terminate; clear "no running instance" error; output includes pid + appName |
+| R4-2 | `run` with `path` + `launchFiles` opened the file in the OS default handler, not the target app | P1 | confirmed (launch+route race) | **FIXED** — launch the app first, then open files into that instance (targeted by bundle URL), removing the LaunchServices routing race |
 
 ### R4-1 (P0) — root cause confirmed (worse than the report inferred)
 

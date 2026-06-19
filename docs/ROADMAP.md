@@ -1,12 +1,11 @@
 # AutoPilot Roadmap
 
-> **OPEN P0 (next up):** `dump_axtree` / `find` / `suggest` and `run`-by-bundleId
-> currently **kill the running app instance and relaunch a fresh one**, so
-> inspection reports a phantom window instead of the app the user is looking at
-> (medit Round-4 feedback, verified in source). The fix is an **attach-to-running**
-> path (by frontmost-running bundleId, and by pid) for inspection commands, which
-> must never launch/terminate. See `docs/feedback-response.md` → Round 4. This
-> takes priority over any new milestone work below.
+> **RESOLVED (was an open P0):** `dump_axtree` / `find` / `suggest` used to kill
+> the running instance and relaunch a fresh one, so inspection reported a phantom
+> window. **Fixed** — inspection commands now attach to the running instance
+> (frontmost by bundleId, or by `--pid`), never launch/terminate, and error
+> clearly when nothing is running. `launchFiles` routing (R4-2) also fixed. See
+> `docs/feedback-response.md` → Round 4.
 >
 > **STATUS: v2 implemented.** Milestones A–E below have been built (suite runner,
 > ergonomics, region/snapshot visual assertions, polish, distribution). See
