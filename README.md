@@ -92,6 +92,8 @@ RESULT pass 7/7
 
 Calculator is pre-installed on every Mac, so this plan runs immediately with no setup beyond granting Accessibility permission.
 
+For a guided walkthrough, read the **[User Manual](docs/MANUAL.md)**.
+
 ## Plan format at a glance
 
 | Action | Needs `target`? | Key args | What it does |

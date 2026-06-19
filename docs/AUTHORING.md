@@ -1,5 +1,7 @@
 # Writing an AutoPilot Test Plan
 
+> New to AutoPilot? Start with the **[User Manual](MANUAL.md)** for a guided introduction. This document is the complete reference.
+
 This is the canonical guide for authoring AutoPilot test plans. It is written to
 be usable by **both an AI agent and a human**. An agent working on a target app
 should be able to read this file and produce a valid, runnable plan.
