@@ -17,11 +17,9 @@ jobs:
       - name: Build
         run: swift build
 
-      # The unit tests run without a GUI/Accessibility grant; the AX-driven
-      # integration tests self-skip when AXIsProcessTrusted() is false (which it
-      # is on a headless CI runner), so the suite stays green. To exercise the
-      # integration tests, a runner with Accessibility granted is required (see
-      # docs/CI.md) — not available on stock GitHub macOS runners.
+      - name: Build TestHostApp fixture
+        run: Fixtures/TestHostApp/make-app.sh
+
       - name: Test
         run: swift test
 
