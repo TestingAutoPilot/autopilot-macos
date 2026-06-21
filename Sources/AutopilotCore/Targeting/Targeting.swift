@@ -5,7 +5,7 @@ import AppKit
 /// Orchestrates element resolution: AX first, vision fallback (Phase 6),
 /// with poll-until-resolvable semantics driven by the Poller.
 public struct Targeting {
-    let axResolver = AXResolver()
+    let axResolver = MacOSAXResolver()
     let poller: Poller
     public init(poller: Poller = Poller()) { self.poller = poller }
 

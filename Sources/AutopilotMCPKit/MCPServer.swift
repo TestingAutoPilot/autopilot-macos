@@ -79,7 +79,7 @@ public final class MCPServer {
             let sel = Selector(role: args["role"] as? String,
                                identifier: args["identifier"] as? String,
                                title: args["title"] as? String)
-            let matches = AXResolver().findAll(in: app, selector: sel)
+            let matches = MacOSAXResolver().findAll(in: app, selector: sel)
             let payload: [String: Any] = ["count": matches.count, "matches": matches]
             respondToolText(id: id, text: String(data: try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]), encoding: .utf8) ?? "{}")
         } catch let e as AppLaunchError {

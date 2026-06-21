@@ -162,7 +162,7 @@ struct Find: ParsableCommand {
         let launched = try Inspect.attach(app: app, pid: pid)   // attach, never launch
         let appEl = Inspect.appElement(launched)
         let selector = Selector(role: role, identifier: identifier, title: title)
-        let matches = AXResolver().findAll(in: appEl, selector: selector)
+        let matches = MacOSAXResolver().findAll(in: appEl, selector: selector)
         print("\(matches.count) match(es) for \(AXResolver.describe(selector)):")
         for m in matches { print("  \(m)") }
         if matches.count != 1 { throw ExitCode(1) }
