@@ -13,6 +13,10 @@ Declarative macOS GUI testing and documentation screenshots via the Accessibilit
 - Captures screenshots at any step — full display, cropped to a named element, or an absolute region. Add `captureTarget: true` to any step for a zero-overhead visual log on every run. Use `target.attach: true` to drive an already-running app from a specific state, making AutoPilot equally useful for producing documentation screenshots as for automated testing.
 - Runs a whole directory of plans in one command and produces an aggregate report.
 
+## Architecture
+
+AutoPilot is split into two repositories. [`autopilot-core`](https://github.com/jschwefel-CBB/autopilot-core) holds the platform-agnostic half — the plan model, parser, linter, runner, reporters, and the `AppDriver` protocol that expresses everything the runner needs from a platform. Platform backends implement that protocol: `autopilot-macos` (this repo) provides the macOS driver built on the Accessibility API, CGEvent synthesis, and ScreenCaptureKit, plus the `autopilot` CLI and the `AutopilotMCP` server. iOS and Android backends are planned and will reuse the same core unchanged. `autopilot-macos` depends on `autopilot-core` as a versioned Swift package.
+
 ## Install
 
 ### Homebrew (recommended)

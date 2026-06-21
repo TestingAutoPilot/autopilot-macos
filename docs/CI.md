@@ -10,19 +10,18 @@ integration tests, you need a self-hosted runner with Accessibility granted to
 the test process — stock GitHub macOS runners cannot grant TCC permissions
 non-interactively.
 
-### Core purity gate
+### Core purity
 
-The package is split into two library targets: `AutopilotCore` (platform-agnostic
-orchestration — the plan model, parser, linter, report, `PlanRunner`, and the
-`AppDriver` driver protocols) and `AutopilotMacOS` (the concrete `MacOSDriver`
-that backs the protocols with Accessibility/CGEvent/ScreenCaptureKit). The CI
-step "Core purity gate" runs `scripts/check-core-purity.sh`, which fails the
-build if any platform framework (`AppKit`, `ApplicationServices`, `CoreGraphics`,
-`ScreenCaptureKit`, `Cocoa`, `Quartz`) is imported anywhere under
-`Sources/AutopilotCore/`. This keeps the agnostic core importable by future
-non-macOS backends; the compiler already enforces the boundary by building
-`AutopilotCore` as its own target with no dependency on `AutopilotMacOS`, and the
-gate catches a stray import before it can compile.
+The platform-agnostic orchestration — the plan model, parser, linter, report,
+`PlanRunner`, and the `AppDriver` driver protocols — now lives in the separate
+[`autopilot-core`](https://github.com/jschwefel-CBB/autopilot-core) package,
+which `autopilot-macos` depends on as a versioned Swift package. This repo keeps
+only `AutopilotMacOS` (the concrete `MacOSDriver` that backs the protocols with
+Accessibility/CGEvent/ScreenCaptureKit) plus the `autopilot`/`AutopilotMCP`
+executables. The purity gate that forbids platform-framework imports
+(`AppKit`, `ApplicationServices`, `CoreGraphics`, `ScreenCaptureKit`, `Cocoa`,
+`Quartz`) in the agnostic core now runs in the `autopilot-core` repo's own CI, so
+it is no longer part of this repo's workflow.
 
 ## Releases
 `scripts/release.sh <version>` produces a release build + a tarball under
@@ -33,7 +32,7 @@ formula.
 
 ## Release workflow (`.github/workflows/release.yml`)
 
-Triggered by pushing a `v*` tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
+Triggered by pushing a `v*` tag (e.g. `git tag v2.0.0 && git push origin v2.0.0`).
 
 **What it does:**
 1. Builds `autopilot` + `AutopilotMCP` on arm64 (`macos-14`) and x86_64 (`macos-13`) in parallel.
@@ -52,14 +51,14 @@ Triggered by pushing a `v*` tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`
 
 **Manual release** (without CI):
 ```bash
-scripts/release.sh 1.0.0           # build + package
+scripts/release.sh 2.0.0           # build + package
 scripts/notarize.sh dist/*.tar.gz   # notarize (optional)
-git tag v1.0.0 && git push origin v1.0.0
-gh release create v1.0.0 dist/*.tar.gz --title "v1.0.0" --generate-notes
-SHA=$(shasum -a 256 dist/autopilot-1.0.0-arm64.tar.gz | awk '{print $1}')
+git tag v2.0.0 && git push origin v2.0.0
+gh release create v2.0.0 dist/*.tar.gz --title "v2.0.0" --generate-notes
+SHA=$(shasum -a 256 dist/autopilot-2.0.0-arm64.tar.gz | awk '{print $1}')
 TAP_REPO=https://github.com/<owner>/homebrew-autopilot.git \
   GITHUB_TOKEN=<pat> \
-  scripts/update-tap.sh 1.0.0 "$SHA" arm64
+  scripts/update-tap.sh 2.0.0 "$SHA" arm64
 ```
 
 ## Plan schema
