@@ -17,6 +17,9 @@ jobs:
       - name: Build
         run: swift build
 
+      - name: Core purity gate
+        run: bash scripts/check-core-purity.sh
+
       - name: Build TestHostApp fixture
         run: Fixtures/TestHostApp/make-app.sh
 

@@ -10,6 +10,20 @@ integration tests, you need a self-hosted runner with Accessibility granted to
 the test process — stock GitHub macOS runners cannot grant TCC permissions
 non-interactively.
 
+### Core purity gate
+
+The package is split into two library targets: `AutopilotCore` (platform-agnostic
+orchestration — the plan model, parser, linter, report, `PlanRunner`, and the
+`AppDriver` driver protocols) and `AutopilotMacOS` (the concrete `MacOSDriver`
+that backs the protocols with Accessibility/CGEvent/ScreenCaptureKit). The CI
+step "Core purity gate" runs `scripts/check-core-purity.sh`, which fails the
+build if any platform framework (`AppKit`, `ApplicationServices`, `CoreGraphics`,
+`ScreenCaptureKit`, `Cocoa`, `Quartz`) is imported anywhere under
+`Sources/AutopilotCore/`. This keeps the agnostic core importable by future
+non-macOS backends; the compiler already enforces the boundary by building
+`AutopilotCore` as its own target with no dependency on `AutopilotMacOS`, and the
+gate catches a stray import before it can compile.
+
 ## Releases
 `scripts/release.sh <version>` produces a release build + a tarball under
 `dist/`. It deliberately stops short of publishing (tagging / `gh release
