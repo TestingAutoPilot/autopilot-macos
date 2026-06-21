@@ -104,7 +104,7 @@ public struct PlanParser {
             }
             // Reject an unparseable chord at parse time, not partway through a
             // live run after earlier steps already mutated app state.
-            _ = try ActionEngine.parseChord(keys)
+            try ChordValidator.validate(keys)
         case .scroll:
             if step.args?.deltaX == nil && step.args?.deltaY == nil {
                 throw PlanError.missingArgs(stepId: step.id, action: step.action.rawValue, field: "deltaX or deltaY")
