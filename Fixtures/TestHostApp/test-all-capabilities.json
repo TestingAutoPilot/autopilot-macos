@@ -202,6 +202,184 @@
       "target": { "identifier": "okButton", "within": { "role": "AXMenuBar" } },
       "assert": { "property": "value", "op": "notExists" } },
 
+    { "comment": "── E1: Segmented control ──────────────────────────────────────────────────",
+      "id": "segment-press-beta",
+      "action": "press",
+      "target": { "role": "AXRadioButton", "index": 1, "within": { "identifier": "modeSegment" } } },
+
+    { "id": "segment-assert-1",
+      "action": "assert",
+      "target": { "identifier": "segmentLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "segment: 1" } },
+
+    { "id": "segment-press-gamma",
+      "action": "press",
+      "target": { "role": "AXRadioButton", "index": 2, "within": { "identifier": "modeSegment" } } },
+
+    { "id": "segment-assert-2",
+      "action": "assert",
+      "target": { "identifier": "segmentLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "segment: 2" } },
+
+    { "comment": "── E2: Picker / dropdown (NSPopUpButton) ──────────────────────────────────",
+      "id": "picker-open",
+      "action": "press",
+      "target": { "identifier": "colorPicker" } },
+
+    { "id": "picker-select-blue",
+      "action": "press",
+      "target": { "role": "AXMenuItem", "title": "Blue" } },
+
+    { "id": "picker-assert-label",
+      "action": "assert",
+      "target": { "identifier": "pickerLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "pick: Blue" } },
+
+    { "comment": "── E3: Stepper ────────────────────────────────────────────────────────────",
+      "id": "stepper-assert-zero",
+      "action": "assert",
+      "target": { "identifier": "quantityLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "qty: 0" } },
+
+    { "id": "stepper-increment",
+      "action": "press",
+      "target": { "role": "AXButton", "index": 0, "within": { "identifier": "quantityStepper" } } },
+
+    { "id": "stepper-assert-one",
+      "action": "assert",
+      "target": { "identifier": "quantityLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "qty: 1" } },
+
+    { "id": "stepper-decrement",
+      "action": "press",
+      "target": { "role": "AXButton", "index": 1, "within": { "identifier": "quantityStepper" } } },
+
+    { "id": "stepper-assert-zero-again",
+      "action": "assert",
+      "target": { "identifier": "quantityLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "qty: 0" } },
+
+    { "comment": "── E4: Progress indicator ──────────────────────────────────────────────────",
+      "id": "progress-assert-half",
+      "action": "assert",
+      "target": { "identifier": "uploadProgress" },
+      "assert": { "property": "value", "op": "equals", "expected": "0.5" } },
+
+    { "id": "progress-assert-gt-zero",
+      "action": "assert",
+      "target": { "identifier": "uploadProgress" },
+      "assert": { "property": "value", "op": "greaterThan", "expected": "0.0" } },
+
+    { "id": "progress-assert-lt-one",
+      "action": "assert",
+      "target": { "identifier": "uploadProgress" },
+      "assert": { "property": "value", "op": "lessThan", "expected": "1.0" } },
+
+    { "id": "progress-advance",
+      "action": "click",
+      "target": { "identifier": "advanceButton" } },
+
+    { "id": "progress-assert-complete",
+      "action": "assert",
+      "target": { "identifier": "uploadProgress" },
+      "assert": { "property": "value", "op": "equals", "expected": "1.0" } },
+
+    { "comment": "── E5: Multi-line text area ────────────────────────────────────────────────",
+      "id": "notes-type",
+      "action": "type",
+      "target": { "identifier": "notesArea" },
+      "args": { "text": "Line one\nLine two\nLine three" } },
+
+    { "id": "notes-assert-contains",
+      "action": "assert",
+      "target": { "identifier": "notesArea" },
+      "assert": { "property": "value", "op": "contains", "expected": "Line two" } },
+
+    { "id": "notes-set-value",
+      "action": "setValue",
+      "target": { "identifier": "notesArea" },
+      "args": { "text": "Replaced" } },
+
+    { "id": "notes-assert-replaced",
+      "action": "assert",
+      "target": { "identifier": "notesArea" },
+      "assert": { "property": "value", "op": "equals", "expected": "Replaced" } },
+
+    { "comment": "── E6: Link / tappable label ───────────────────────────────────────────────",
+      "id": "link-assert-exists",
+      "action": "assert",
+      "target": { "identifier": "termsLink" },
+      "assert": { "property": "value", "op": "exists" } },
+
+    { "id": "link-click",
+      "action": "click",
+      "target": { "identifier": "termsLink" } },
+
+    { "id": "link-assert-status",
+      "action": "assert",
+      "target": { "identifier": "statusLabel" },
+      "assert": { "property": "value", "op": "contains", "expected": "link-tapped" } },
+
+    { "comment": "── E7: Table / list rows ───────────────────────────────────────────────────",
+      "id": "table-count-rows",
+      "action": "assert",
+      "target": { "role": "AXStaticText", "within": { "identifier": "fileTable" } },
+      "assert": { "property": "count", "op": "equals", "expected": "3" } },
+
+    { "id": "table-click-first-row",
+      "action": "click",
+      "target": { "identifier": "row-document.pdf" } },
+
+    { "id": "table-assert-sel-first",
+      "action": "assert",
+      "target": { "identifier": "tableSelLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "table-sel: document.pdf" } },
+
+    { "id": "table-row-exists",
+      "action": "assert",
+      "target": { "identifier": "row-photo.jpg" },
+      "assert": { "property": "value", "op": "exists" } },
+
+    { "comment": "── E8: Alert / modal sheet ─────────────────────────────────────────────────",
+      "id": "alert-trigger",
+      "action": "click",
+      "target": { "identifier": "alertButton" } },
+
+    { "id": "alert-wait-sheet",
+      "action": "waitFor",
+      "target": { "role": "AXSheet" },
+      "args": { "present": true } },
+
+    { "id": "alert-confirm",
+      "action": "press",
+      "target": { "identifier": "confirmButton" } },
+
+    { "id": "alert-wait-dismissed",
+      "action": "waitFor",
+      "target": { "role": "AXSheet" },
+      "args": { "present": false } },
+
+    { "id": "alert-assert-confirmed",
+      "action": "assert",
+      "target": { "identifier": "statusLabel" },
+      "assert": { "property": "value", "op": "contains", "expected": "alert-confirmed" } },
+
+    { "comment": "── E9: Disabled element ────────────────────────────────────────────────────",
+      "id": "disabled-assert-exists",
+      "action": "assert",
+      "target": { "identifier": "lockedButton" },
+      "assert": { "property": "value", "op": "exists" } },
+
+    { "id": "disabled-assert-enabled-false",
+      "action": "assert",
+      "target": { "identifier": "lockedButton" },
+      "assert": { "property": "enabled", "op": "equals", "expected": "false" } },
+
+    { "id": "disabled-assert-label",
+      "action": "assert",
+      "target": { "identifier": "disabledLabel" },
+      "assert": { "property": "value", "op": "equals", "expected": "locked: true" } },
+
     { "id": "terminate",
       "action": "terminate" }
   ]

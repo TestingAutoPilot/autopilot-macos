@@ -702,4 +702,359 @@ import ApplicationServices
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
         #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
     }
+
+    // MARK: - Segmented control
+
+    @Test func segmentedControlPressAndAssert() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-seg-\(UUID().uuidString)")
+        // modeSegment is an AXRadioGroup; children are AXRadioButton (no title in AX tree).
+        // Select by index. segmentLabel mirrors the selected index as "segment: N".
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: segmented control",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "press-beta", action: .press,
+                     target: Selector(role: "AXRadioButton", index: 1,
+                                      within: Selector(identifier: "modeSegment"))),
+                Step(id: "assert-segment-1", action: .assert,
+                     target: Selector(identifier: "segmentLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "segment: 1")),
+                Step(id: "press-gamma", action: .press,
+                     target: Selector(role: "AXRadioButton", index: 2,
+                                      within: Selector(identifier: "modeSegment"))),
+                Step(id: "assert-segment-2", action: .assert,
+                     target: Selector(identifier: "segmentLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "segment: 2")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Picker (NSPopUpButton)
+
+    @Test func pickerSelectsOptionAndUpdatesLabel() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-picker-\(UUID().uuidString)")
+        // Press the popup to open it, then press an AXMenuItem by title.
+        // pickerLabel mirrors the selection as "pick: <title>".
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: picker",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "open-picker", action: .press,
+                     target: Selector(identifier: "colorPicker")),
+                Step(id: "pick-blue", action: .press,
+                     target: Selector(role: "AXMenuItem", title: "Blue")),
+                Step(id: "assert-picker-label", action: .assert,
+                     target: Selector(identifier: "pickerLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "pick: Blue")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Stepper
+
+    @Test func stepperIncrementAndDecrement() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-stepper-\(UUID().uuidString)")
+        // AXIncrementor exposes two AXButton children; index 0 = increment, index 1 = decrement.
+        // quantityLabel mirrors the value as "qty: N".
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: stepper",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "assert-zero", action: .assert,
+                     target: Selector(identifier: "quantityLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "qty: 0")),
+                Step(id: "increment", action: .press,
+                     target: Selector(role: "AXButton", index: 0,
+                                      within: Selector(identifier: "quantityStepper"))),
+                Step(id: "assert-one", action: .assert,
+                     target: Selector(identifier: "quantityLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "qty: 1")),
+                Step(id: "increment-again", action: .press,
+                     target: Selector(role: "AXButton", index: 0,
+                                      within: Selector(identifier: "quantityStepper"))),
+                Step(id: "assert-two", action: .assert,
+                     target: Selector(identifier: "quantityLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "qty: 2")),
+                Step(id: "decrement", action: .press,
+                     target: Selector(role: "AXButton", index: 1,
+                                      within: Selector(identifier: "quantityStepper"))),
+                Step(id: "assert-one-again", action: .assert,
+                     target: Selector(identifier: "quantityLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "qty: 1")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Progress indicator
+
+    @Test func progressIndicatorValueAndAdvance() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-progress-\(UUID().uuidString)")
+        // uploadProgress starts at 0.5; advanceButton sets it to 1.0.
+        // Tests greaterThan, lessThan, and equals on a floating-point AX value.
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: progress indicator",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "assert-half", action: .assert,
+                     target: Selector(identifier: "uploadProgress"),
+                     assert: Assertion(property: .value, op: .equals, expected: "0.5")),
+                Step(id: "assert-gt-zero", action: .assert,
+                     target: Selector(identifier: "uploadProgress"),
+                     assert: Assertion(property: .value, op: .greaterThan, expected: "0.0")),
+                Step(id: "assert-lt-one", action: .assert,
+                     target: Selector(identifier: "uploadProgress"),
+                     assert: Assertion(property: .value, op: .lessThan, expected: "1.0")),
+                Step(id: "advance", action: .click,
+                     target: Selector(identifier: "advanceButton")),
+                Step(id: "assert-complete", action: .assert,
+                     target: Selector(identifier: "uploadProgress"),
+                     assert: Assertion(property: .value, op: .equals, expected: "1.0")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Multi-line text area
+
+    @Test func multiLineTextAreaTypeAndAssert() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-notes-\(UUID().uuidString)")
+        // notesArea is an AXTextArea (NSTextView). Type multi-line content;
+        // \n in text becomes a Return keypress. Assert contains a single-line substring
+        // (more robust than exact multi-line equals across platforms).
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: multi-line text area",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "type-lines", action: .type,
+                     target: Selector(identifier: "notesArea"),
+                     args: { var a = ActionArgs(); a.text = "Line one\nLine two\nLine three"; return a }()),
+                Step(id: "assert-contains-line2", action: .assert,
+                     target: Selector(identifier: "notesArea"),
+                     assert: Assertion(property: .value, op: .contains, expected: "Line two")),
+                // setValue writes the AX value directly — avoids the Cmd+A+Delete
+                // race on NSTextView where the selection-all may not be honoured
+                // before the deletion keystroke fires.
+                Step(id: "set-value-replace", action: .setValue,
+                     target: Selector(identifier: "notesArea"),
+                     args: { var a = ActionArgs(); a.text = "New content"; return a }()),
+                Step(id: "assert-replaced", action: .assert,
+                     target: Selector(identifier: "notesArea"),
+                     assert: Assertion(property: .value, op: .equals, expected: "New content")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Link / tappable label
+
+    @Test func tappableLinkClickUpdatesStatus() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-link-\(UUID().uuidString)")
+        // termsLink is a custom AXLink view. click fires mouseDown which sets statusLabel.
+        // Verifies click works on non-button AX roles and that title is readable.
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: tappable link",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "assert-link-exists", action: .assert,
+                     target: Selector(identifier: "termsLink"),
+                     assert: Assertion(property: .value, op: .exists)),
+                Step(id: "click-link", action: .click,
+                     target: Selector(identifier: "termsLink")),
+                Step(id: "assert-link-tapped", action: .assert,
+                     target: Selector(identifier: "statusLabel"),
+                     assert: Assertion(property: .value, op: .contains, expected: "link-tapped")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Table / list rows
+
+    @Test func tableRowClickAndCount() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-table-\(UUID().uuidString)")
+        // fileTable has 3 rows; each cell's AXStaticText has identifier "row-<filename>".
+        // Click a row by cell identifier; assert tableSelLabel updates.
+        // Assert count of AXStaticText children in the table equals 3.
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: table rows",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "count-rows", action: .assert,
+                     target: Selector(role: "AXStaticText",
+                                      within: Selector(identifier: "fileTable")),
+                     assert: Assertion(property: .count, op: .equals, expected: "3")),
+                Step(id: "click-first-row", action: .click,
+                     target: Selector(identifier: "row-document.pdf")),
+                Step(id: "assert-sel-first", action: .assert,
+                     target: Selector(identifier: "tableSelLabel"),
+                     assert: Assertion(property: .value, op: .equals,
+                                       expected: "table-sel: document.pdf")),
+                Step(id: "click-third-row", action: .click,
+                     target: Selector(identifier: "row-notes.txt")),
+                Step(id: "assert-sel-third", action: .assert,
+                     target: Selector(identifier: "tableSelLabel"),
+                     assert: Assertion(property: .value, op: .equals,
+                                       expected: "table-sel: notes.txt")),
+                Step(id: "assert-row-exists", action: .assert,
+                     target: Selector(identifier: "row-photo.jpg"),
+                     assert: Assertion(property: .value, op: .exists)),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Alert / modal sheet
+
+    @Test func alertSheetConfirmAndDismiss() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-alert-\(UUID().uuidString)")
+        // alertButton shows an NSAlert as a sheet (AXSheet role).
+        // waitFor present:true polls until sheet appears; press confirmButton dismisses it;
+        // waitFor present:false polls until it disappears; assert statusLabel updated.
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: alert sheet",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 5000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "trigger-alert", action: .click,
+                     target: Selector(identifier: "alertButton")),
+                Step(id: "wait-sheet", action: .waitFor, target: Selector(role: "AXSheet"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "press-confirm", action: .press,
+                     target: Selector(identifier: "confirmButton")),
+                Step(id: "wait-dismissed", action: .waitFor, target: Selector(role: "AXSheet"),
+                     args: { var a = ActionArgs(); a.present = false; return a }()),
+                Step(id: "assert-confirmed", action: .assert,
+                     target: Selector(identifier: "statusLabel"),
+                     assert: Assertion(property: .value, op: .contains,
+                                       expected: "alert-confirmed")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    // MARK: - Disabled element
+
+    @Test func disabledElementReportsEnabledFalse() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else { return }
+        killExistingTestHostApps(); defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-disabled-\(UUID().uuidString)")
+        // lockedButton has isEnabled=false. Asserting enabled==false and exists
+        // verifies both that the element is in the AX tree and that its enabled
+        // state is readable and correct.
+        let plan = Plan(
+            schemaVersion: "1.0", name: "host: disabled element",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                     args: { var a = ActionArgs(); a.present = true; return a }()),
+                Step(id: "assert-exists", action: .assert,
+                     target: Selector(identifier: "lockedButton"),
+                     assert: Assertion(property: .value, op: .exists)),
+                Step(id: "assert-disabled", action: .assert,
+                     target: Selector(identifier: "lockedButton"),
+                     assert: Assertion(property: .enabled, op: .equals, expected: "false")),
+                Step(id: "assert-disabled-label", action: .assert,
+                     target: Selector(identifier: "disabledLabel"),
+                     assert: Assertion(property: .value, op: .equals, expected: "locked: true")),
+                Step(id: "quit", action: .terminate),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
 }

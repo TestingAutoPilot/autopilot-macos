@@ -2,7 +2,7 @@ import AppKit
 
 final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
     let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 480, height: 460),
+        contentRect: NSRect(x: 0, y: 0, width: 480, height: 900),
         styleMask: [.titled, .closable], backing: .buffered, defer: false)
 
     // --- type / status / count ---
@@ -22,6 +22,24 @@ final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate 
     // --- slider (drag test) ---
     // NSSlider 0–100, starts at 0; drag moves the thumb
     let sliderValueLabel = NSTextField(labelWithString: "slider: 0")
+
+    // --- E1: segmented control ---
+    let segmentLabel = NSTextField(labelWithString: "segment: 0")
+
+    // --- E2: picker ---
+    let pickerLabel = NSTextField(labelWithString: "pick: Red")
+
+    // --- E3: stepper ---
+    let quantityLabel = NSTextField(labelWithString: "qty: 0")
+
+    // --- E4: progress ---
+    let uploadProgress = NSProgressIndicator()
+
+    // --- E7: table ---
+    let tableFiles = ["document.pdf", "photo.jpg", "notes.txt"]
+    let tableSelLabel = NSTextField(labelWithString: "table-sel: none")
+    var tableView: NSTableView!
+    var tableDataSource: FileTableDataSource!
 
     func applicationDidFinishLaunching(_ note: Notification) {
         window.title = "TestHostApp"
@@ -136,6 +154,140 @@ final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate 
         resultLabel.setAccessibilityIdentifier("resultLabel")
         content.addSubview(resultLabel)
 
+        // ════════════════════════════════════════════════════════════════════
+        // NEW ELEMENTS — y=460 upward (visually above existing elements)
+        // ════════════════════════════════════════════════════════════════════
+
+        // ── E1: Segmented control ────────────────────────────────────────────
+        // y=856..890 (top of window)
+        let segCtrl = NSSegmentedControl(labels: ["Alpha", "Beta", "Gamma"],
+                                         trackingMode: .selectOne,
+                                         target: self,
+                                         action: #selector(segmentChanged(_:)))
+        segCtrl.frame = NSRect(x: 20, y: 862, width: 220, height: 24)
+        segCtrl.setSelected(true, forSegment: 0)
+        segCtrl.setAccessibilityIdentifier("modeSegment")
+        content.addSubview(segCtrl)
+
+        segmentLabel.frame = NSRect(x: 252, y: 862, width: 180, height: 24)
+        segmentLabel.setAccessibilityIdentifier("segmentLabel")
+        content.addSubview(segmentLabel)
+
+        // ── E2: Picker (NSPopUpButton) ────────────────────────────────────────
+        // y=818..852
+        let colorPicker = NSPopUpButton(frame: NSRect(x: 20, y: 820, width: 130, height: 26), pullsDown: false)
+        colorPicker.addItems(withTitles: ["Red", "Green", "Blue"])
+        colorPicker.selectItem(at: 0)
+        colorPicker.target = self
+        colorPicker.action = #selector(pickerChanged(_:))
+        colorPicker.setAccessibilityIdentifier("colorPicker")
+        content.addSubview(colorPicker)
+
+        pickerLabel.frame = NSRect(x: 162, y: 822, width: 200, height: 22)
+        pickerLabel.setAccessibilityIdentifier("pickerLabel")
+        content.addSubview(pickerLabel)
+
+        // ── E3: Stepper ───────────────────────────────────────────────────────
+        // y=778..812
+        let stepper = NSStepper(frame: NSRect(x: 20, y: 780, width: 40, height: 26))
+        stepper.minValue = 0
+        stepper.maxValue = 10
+        stepper.increment = 1
+        stepper.doubleValue = 0
+        stepper.target = self
+        stepper.action = #selector(stepperChanged(_:))
+        stepper.setAccessibilityIdentifier("quantityStepper")
+        content.addSubview(stepper)
+
+        quantityLabel.frame = NSRect(x: 70, y: 782, width: 200, height: 22)
+        quantityLabel.setAccessibilityIdentifier("quantityLabel")
+        content.addSubview(quantityLabel)
+
+        // ── E4: Progress indicator ────────────────────────────────────────────
+        // y=738..772
+        uploadProgress.frame = NSRect(x: 20, y: 742, width: 200, height: 20)
+        uploadProgress.style = .bar
+        uploadProgress.isIndeterminate = false
+        uploadProgress.minValue = 0.0
+        uploadProgress.maxValue = 1.0
+        uploadProgress.doubleValue = 0.5
+        uploadProgress.setAccessibilityIdentifier("uploadProgress")
+        content.addSubview(uploadProgress)
+
+        let advanceButton = NSButton(title: "Advance", target: self, action: #selector(advanceProgress))
+        advanceButton.frame = NSRect(x: 232, y: 738, width: 90, height: 28)
+        advanceButton.setAccessibilityIdentifier("advanceButton")
+        content.addSubview(advanceButton)
+
+        // ── E5: Multi-line text area ──────────────────────────────────────────
+        // y=648..736 (scroll view ~80pt tall)
+        let notesScrollView = NSScrollView(frame: NSRect(x: 20, y: 648, width: 200, height: 80))
+        notesScrollView.hasVerticalScroller = true
+        notesScrollView.setAccessibilityElement(false)
+        let notesTextView = NSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 80))
+        notesTextView.isEditable = true
+        notesTextView.isRichText = false
+        notesTextView.setAccessibilityIdentifier("notesArea")
+        notesScrollView.documentView = notesTextView
+        content.addSubview(notesScrollView)
+
+        // ── E6: Link / tappable label ─────────────────────────────────────────
+        // y=608..642
+        let termsLink = TappableLink(statusLabel: statusLabel)
+        termsLink.frame = NSRect(x: 20, y: 610, width: 160, height: 24)
+        termsLink.setAccessibilityIdentifier("termsLink")
+        termsLink.setAccessibilityElement(true)
+        termsLink.setAccessibilityRole(.link)
+        content.addSubview(termsLink)
+
+        // ── E7: Table ─────────────────────────────────────────────────────────
+        // y=508..606 (90pt scroll view + 22pt label below = 598..596 for label)
+        tableDataSource = FileTableDataSource(files: tableFiles, selLabel: tableSelLabel)
+        tableView = NSTableView()
+        tableView.setAccessibilityIdentifier("fileTable")
+        let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("col"))
+        col.title = "File"
+        col.width = 200
+        tableView.addTableColumn(col)
+        tableView.dataSource = tableDataSource
+        tableView.delegate = tableDataSource
+        tableView.rowHeight = 20
+        tableView.usesAlternatingRowBackgroundColors = true
+        tableView.target = self
+        tableView.action = #selector(tableRowClicked)
+
+        let tableScrollView = NSScrollView(frame: NSRect(x: 20, y: 508, width: 220, height: 90))
+        tableScrollView.documentView = tableView
+        tableScrollView.hasVerticalScroller = true
+        content.addSubview(tableScrollView)
+
+        tableSelLabel.frame = NSRect(x: 20, y: 478, width: 300, height: 22)
+        tableSelLabel.setAccessibilityIdentifier("tableSelLabel")
+        content.addSubview(tableSelLabel)
+
+        // ── E8: Alert trigger ─────────────────────────────────────────────────
+        // y=438..472
+        let alertButton = NSButton(title: "Show Alert", target: self, action: #selector(showAlert))
+        alertButton.frame = NSRect(x: 20, y: 440, width: 120, height: 28)
+        alertButton.setAccessibilityIdentifier("alertButton")
+        content.addSubview(alertButton)
+
+        // ── E9: Disabled element ──────────────────────────────────────────────
+        // existing elements occupy y=40..434; put E9 just above y=434
+        // Use y=436 (tight but just above existing top nameField at y=410+24=434)
+        // Actually place at y=438 for 2pt gap — but E8 is at 440, so place E9 at a
+        // slightly different x to share the row, or move E9 below. Use same row (y=440):
+        let lockedButton = NSButton(title: "Locked", target: nil, action: nil)
+        lockedButton.frame = NSRect(x: 160, y: 440, width: 90, height: 28)
+        lockedButton.isEnabled = false
+        lockedButton.setAccessibilityIdentifier("lockedButton")
+        content.addSubview(lockedButton)
+
+        let disabledLabel = NSTextField(labelWithString: "locked: true")
+        disabledLabel.frame = NSRect(x: 262, y: 444, width: 140, height: 22)
+        disabledLabel.setAccessibilityIdentifier("disabledLabel")
+        content.addSubview(disabledLabel)
+
         window.contentView = content
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -189,6 +341,56 @@ final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate 
 
     @objc func sliderMoved(_ sender: NSSlider) {
         sliderValueLabel.stringValue = "slider: \(Int(sender.doubleValue))"
+    }
+
+    // ── E1 ──────────────────────────────────────────────────────────────────
+    @objc func segmentChanged(_ sender: NSSegmentedControl) {
+        segmentLabel.stringValue = "segment: \(sender.selectedSegment)"
+    }
+
+    // ── E2 ──────────────────────────────────────────────────────────────────
+    @objc func pickerChanged(_ sender: NSPopUpButton) {
+        let title = sender.selectedItem?.title ?? ""
+        pickerLabel.stringValue = "pick: \(title)"
+    }
+
+    // ── E3 ──────────────────────────────────────────────────────────────────
+    @objc func stepperChanged(_ sender: NSStepper) {
+        quantityLabel.stringValue = "qty: \(Int(sender.doubleValue))"
+    }
+
+    // ── E4 ──────────────────────────────────────────────────────────────────
+    @objc func advanceProgress() {
+        uploadProgress.doubleValue = 1.0
+    }
+
+    // ── E7 ──────────────────────────────────────────────────────────────────
+    @objc func tableRowClicked() {
+        let row = tableView.clickedRow
+        guard row >= 0, row < tableFiles.count else { return }
+        tableSelLabel.stringValue = "table-sel: \(tableFiles[row])"
+    }
+
+    // ── E8 ──────────────────────────────────────────────────────────────────
+    @objc func showAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Are you sure?"
+        alert.informativeText = "This cannot be undone."
+        alert.addButton(withTitle: "Confirm")
+        alert.addButton(withTitle: "Cancel")
+        if let confirmBtn = alert.buttons.first {
+            confirmBtn.setAccessibilityIdentifier("confirmButton")
+        }
+        if alert.buttons.count > 1 {
+            alert.buttons[1].setAccessibilityIdentifier("cancelButton")
+        }
+        alert.beginSheetModal(for: window) { [weak self] response in
+            if response == .alertFirstButtonReturn {
+                self?.statusLabel.stringValue = "status: alert-confirmed"
+            } else {
+                self?.statusLabel.stringValue = "status: alert-cancelled"
+            }
+        }
     }
 }
 
@@ -245,6 +447,72 @@ final class RightClickBox: NSView {
     @objc func contextAction() {
         rcLabel?.stringValue = "rc: tapped"
         statusLabel?.stringValue = "status: context-tapped"
+    }
+}
+
+// MARK: - TappableLink
+
+/// Clickable label styled as a blue underlined link; sets statusLabel on click.
+final class TappableLink: NSView {
+    private weak var statusLabel: NSTextField?
+    private let textField = NSTextField(labelWithString: "")
+
+    init(statusLabel: NSTextField) {
+        self.statusLabel = statusLabel
+        super.init(frame: .zero)
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.systemBlue,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .font: NSFont.systemFont(ofSize: 13)
+        ]
+        textField.attributedStringValue = NSAttributedString(string: "Terms of Service", attributes: attrs)
+        textField.frame = NSRect(x: 0, y: 0, width: 160, height: 24)
+        textField.isEditable = false
+        textField.isBordered = false
+        textField.backgroundColor = .clear
+        addSubview(textField)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func mouseDown(with event: NSEvent) {
+        statusLabel?.stringValue = "status: link-tapped"
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override var isFlipped: Bool { false }
+}
+
+// MARK: - FileTableDataSource
+
+final class FileTableDataSource: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    private let files: [String]
+    private weak var selLabel: NSTextField?
+
+    init(files: [String], selLabel: NSTextField) {
+        self.files = files
+        self.selLabel = selLabel
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { files.count }
+
+    func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? {
+        files[row]
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let cell = NSTextField(labelWithString: files[row])
+        cell.setAccessibilityIdentifier("row-\(files[row])")
+        return cell
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        guard let tv = notification.object as? NSTableView else { return }
+        let row = tv.selectedRow
+        if row >= 0, row < files.count {
+            selLabel?.stringValue = "table-sel: \(files[row])"
+        }
     }
 }
 
