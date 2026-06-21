@@ -2,7 +2,7 @@
 
 Declarative macOS GUI testing and documentation screenshots via the Accessibility API. No LLM in the execution path.
 
-![CI](https://github.com/jschwefel-CBB/autopilot/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/jschwefel-CBB/autopilot-macos/actions/workflows/ci.yml/badge.svg)
 
 ## What it does
 
@@ -26,7 +26,7 @@ After install, grant **Accessibility** permission to Terminal (or whichever app 
 
 ### Direct download
 
-Download the latest `autopilot-<version>-<arch>.tar.gz` from the [Releases page](https://github.com/jschwefel-CBB/autopilot/releases), extract, and place both `autopilot` and `AutopilotMCP` somewhere on your `$PATH`:
+Download the latest `autopilot-<version>-<arch>.tar.gz` from the [Releases page](https://github.com/jschwefel-CBB/autopilot-macos/releases), extract, and place both `autopilot` and `AutopilotMCP` somewhere on your `$PATH`:
 
 ```bash
 tar -xzf autopilot-<version>-arm64.tar.gz
@@ -43,7 +43,7 @@ xattr -d com.apple.quarantine /usr/local/bin/AutopilotMCP
 ### Build from source
 
 ```bash
-git clone https://github.com/jschwefel-CBB/autopilot.git
+git clone https://github.com/jschwefel-CBB/autopilot-macos.git
 cd autopilot
 swift build -c release
 # Binaries land in .build/release/autopilot and .build/release/AutopilotMCP
@@ -147,6 +147,6 @@ Run `autopilot doctor` at any time to check the status of both permissions.
 
 ## Contributing / license
 
-Contributions are welcome. Open an issue or pull request against [jschwefel-CBB/autopilot](https://github.com/jschwefel-CBB/autopilot). For significant changes, open an issue first to discuss scope.
+Contributions are welcome. Open an issue or pull request against [jschwefel-CBB/autopilot-macos](https://github.com/jschwefel-CBB/autopilot-macos). For significant changes, open an issue first to discuss scope.
 
 Released under the MIT license.

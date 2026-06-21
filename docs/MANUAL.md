@@ -625,5 +625,5 @@ The MCP tools need the same Accessibility permission as the CLI. Run `autopilot 
 
 - **Full action, selector, and assertion reference:** [docs/AUTHORING.md](AUTHORING.md)
 - **Plan JSON schema (editor autocomplete):** [schema/plan.schema.json](../schema/plan.schema.json)
-- **GitHub repository:** [https://github.com/jschwefel-CBB/autopilot](https://github.com/jschwefel-CBB/autopilot)
-- **Filing issues:** [https://github.com/jschwefel-CBB/autopilot/issues](https://github.com/jschwefel-CBB/autopilot/issues)
+- **GitHub repository:** [https://github.com/jschwefel-CBB/autopilot-macos](https://github.com/jschwefel-CBB/autopilot-macos)
+- **Filing issues:** [https://github.com/jschwefel-CBB/autopilot-macos/issues](https://github.com/jschwefel-CBB/autopilot-macos/issues)
