@@ -19,7 +19,7 @@ fi
 
 TAP_REPO="${TAP_REPO:?TAP_REPO env var must point to homebrew-autopilot git URL}"
 OWNER="jschwefel-CBB"   # update if repo owner changes
-URL="https://github.com/${OWNER}/autopilot/releases/download/v${VERSION}/autopilot-${VERSION}-${ARCH}.tar.gz"
+URL="https://github.com/${OWNER}/autopilot-macos/releases/download/v${VERSION}/autopilot-${VERSION}-${ARCH}.tar.gz"
 
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
