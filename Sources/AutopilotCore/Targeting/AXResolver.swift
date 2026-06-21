@@ -23,7 +23,7 @@ public struct AXResolver {
     }
 
     /// How many match descriptors to include in an ambiguity error.
-    static let maxReportedMatches = 5
+    public static let maxReportedMatches = 5
 
     public static func describe(_ s: Selector) -> String {
         var parts: [String] = []

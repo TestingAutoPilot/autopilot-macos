@@ -1,7 +1,7 @@
 import Foundation
-import ApplicationServices
 import ArgumentParser
 import AutopilotCore
+import AutopilotMacOS
 
 struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(

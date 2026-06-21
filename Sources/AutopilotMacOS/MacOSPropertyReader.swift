@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import ApplicationServices
 
 /// Reads AssertProperty values off a live AX element — the platform half of the

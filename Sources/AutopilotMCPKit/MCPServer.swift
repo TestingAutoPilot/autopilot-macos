@@ -1,5 +1,6 @@
 import Foundation
 import AutopilotCore
+import AutopilotMacOS
 
 /// Minimal MCP (JSON-RPC 2.0 over stdio) server exposing autopilot tools.
 public final class MCPServer {

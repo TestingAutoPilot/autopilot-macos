@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import ApplicationServices
 
 /// Attribute reads + tree traversal over the Accessibility API.

@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import AutopilotCore
+@testable import AutopilotMacOS
 
 @Suite struct AttachTests {
     struct FakeApp { let name: String; let active: Bool }

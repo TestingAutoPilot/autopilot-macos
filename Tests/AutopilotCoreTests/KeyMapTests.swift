@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import AutopilotCore
+@testable import AutopilotMacOS
 
 @Suite struct KeyMapTests {
     @Test func lowercaseLetterNoShift() {

@@ -2,6 +2,7 @@ import Testing
 import CoreGraphics
 import ApplicationServices
 @testable import AutopilotCore
+@testable import AutopilotMacOS
 
 @Suite struct MacOSDriverTests {
     @Test func elementWrapsAX() {

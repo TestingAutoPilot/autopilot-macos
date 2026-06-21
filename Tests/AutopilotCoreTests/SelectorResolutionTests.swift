@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import AutopilotCore
+@testable import AutopilotMacOS
 
 @Suite struct SelectorMatcherTests {
     // A snapshot node is a [String:String] as produced by AXTree.snapshot.

@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import CoreGraphics
 
 /// ANSI virtual-key mappings shared by chord parsing and character typing.

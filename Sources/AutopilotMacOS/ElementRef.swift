@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import ApplicationServices
 
 /// A resolved element: either a live AX element handle, or a screen point

@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import ApplicationServices
 @testable import AutopilotCore
+@testable import AutopilotMacOS
 
 // Serialized: these drive the live GUI and share global frontmost-app state.
 // Running them in parallel launches multiple TestHostApp instances at once,

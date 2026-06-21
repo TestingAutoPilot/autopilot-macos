@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import ApplicationServices
 
 /// macOS element handle: wraps a live AXUIElement behind the neutral

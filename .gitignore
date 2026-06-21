@@ -3,3 +3,6 @@
 *.xcodeproj
 .swiftpm/
 artifacts/
+
+# Local release/build artifacts
+dist/

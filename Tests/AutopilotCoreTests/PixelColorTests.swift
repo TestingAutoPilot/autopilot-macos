@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import CoreGraphics
 @testable import AutopilotCore
+@testable import AutopilotMacOS
 
 @Suite struct PixelColorTests {
     @Test func parsesHexWithAndWithoutHash() {

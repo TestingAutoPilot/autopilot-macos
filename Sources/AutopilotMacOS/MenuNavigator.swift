@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import ApplicationServices
 
 /// Drives the menu bar by title path, e.g. ["View", "Rainbow Brackets"].

@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import AppKit
 
 public struct LaunchedApp {

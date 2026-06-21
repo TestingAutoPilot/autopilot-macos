@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import ApplicationServices
 import CoreGraphics
 
@@ -62,7 +63,7 @@ public struct MacOSDriver: AppDriver {
     public func screenRecordingInstructions() -> String { permissions.screenRecordingInstructions() }
 
     // MARK: resolution
-    public func resolve(_ selector: Selector, app: LaunchedHandle,
+    public func resolve(_ selector: AutopilotCore.Selector, app: LaunchedHandle,
                         timeoutMs: Int, intervalMs: Int, baseDir: URL?) throws -> ResolvedElement {
         let appEl = appElement(app)
         let poller = Poller(clock: clock)
@@ -92,17 +93,17 @@ public struct MacOSDriver: AppDriver {
         let el = try axResolver.resolveOne(in: appEl, selector: selector)
         return .element(MacOSElement(el))
     }
-    public func waitForPresence(_ selector: Selector, present: Bool, app: LaunchedHandle,
+    public func waitForPresence(_ selector: AutopilotCore.Selector, present: Bool, app: LaunchedHandle,
                                 timeoutMs: Int, intervalMs: Int) -> Bool {
         let appEl = appElement(app)
         return Poller(clock: clock).waitUntil(timeoutMs: timeoutMs, intervalMs: intervalMs) {
             (axResolver.count(in: appEl, selector: selector) > 0) == present
         }
     }
-    public func matchCount(_ selector: Selector, app: LaunchedHandle) -> Int {
+    public func matchCount(_ selector: AutopilotCore.Selector, app: LaunchedHandle) -> Int {
         axResolver.count(in: appElement(app), selector: selector, stopAt: .max)
     }
-    public func findAll(_ selector: Selector, app: LaunchedHandle) -> [String] {
+    public func findAll(_ selector: AutopilotCore.Selector, app: LaunchedHandle) -> [String] {
         axResolver.findAll(in: appElement(app), selector: selector)
     }
 
@@ -137,13 +138,13 @@ public struct MacOSDriver: AppDriver {
     public func captureRegion(_ rect: Rect, to path: String, metadata: [String: String]) -> Bool {
         Screenshot.captureRegion(Self.cgRect(rect), to: path, metadata: metadata)
     }
-    public func samplePixel(at point: Point) -> RGBColor? {
+    public func samplePixel(at point: Point) -> AutopilotCore.RGBColor? {
         MacOSPixelSampler.sample(at: Self.cgPoint(point)).map { $0.asRGBColor }
     }
-    public func sampleRegion(_ rect: Rect) -> [RGBColor] {
+    public func sampleRegion(_ rect: Rect) -> [AutopilotCore.RGBColor] {
         MacOSPixelSampler.sampleRegion(Self.cgRect(rect)).map { $0.asRGBColor }
     }
-    public func loadPNG(_ path: String) -> [RGBColor]? {
+    public func loadPNG(_ path: String) -> [AutopilotCore.RGBColor]? {
         MacOSPixelSampler.loadPNG(path).map { $0.map { $0.asRGBColor } }
     }
 

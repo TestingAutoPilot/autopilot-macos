@@ -1,4 +1,5 @@
 import Foundation
+import AutopilotCore
 import ApplicationServices
 
 /// Resolves a Selector against a running app's live AX tree — the platform half
@@ -15,12 +16,12 @@ public struct MacOSAXResolver {
         return node
     }
 
-    func rootFor(_ selector: Selector, in appElement: AXUIElement) throws -> AXUIElement {
+    func rootFor(_ selector: AutopilotCore.Selector, in appElement: AXUIElement) throws -> AXUIElement {
         guard let parent = selector.withinSelector else { return appElement }
         return try resolveOne(in: appElement, selector: parent)
     }
 
-    public func resolveOne(in appElement: AXUIElement, selector: Selector) throws -> AXUIElement {
+    public func resolveOne(in appElement: AXUIElement, selector: AutopilotCore.Selector) throws -> AXUIElement {
         let root = try rootFor(selector, in: appElement)
         var matches: [AXUIElement] = []
         var descriptors: [String] = []
@@ -48,7 +49,7 @@ public struct MacOSAXResolver {
         return matches[0]
     }
 
-    public func findAll(in appElement: AXUIElement, selector: Selector) -> [String] {
+    public func findAll(in appElement: AXUIElement, selector: AutopilotCore.Selector) -> [String] {
         guard let root = try? rootFor(selector, in: appElement) else { return [] }
         var out: [String] = []
         AXTree.walk(root) { el in
@@ -58,7 +59,7 @@ public struct MacOSAXResolver {
         return out
     }
 
-    public func count(in appElement: AXUIElement, selector: Selector, stopAt: Int = 2) -> Int {
+    public func count(in appElement: AXUIElement, selector: AutopilotCore.Selector, stopAt: Int = 2) -> Int {
         guard let root = try? rootFor(selector, in: appElement) else { return 0 }
         var n = 0
         AXTree.walk(root) { el in
