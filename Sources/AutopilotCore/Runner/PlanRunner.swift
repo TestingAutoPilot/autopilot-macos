@@ -167,6 +167,13 @@ public struct PlanRunner {
             let path = step.args?.path ?? options.artifactsDir.appendingPathComponent("\(step.id).png").path
             let padding = step.args?.padding ?? 0
             let meta = stepMetadata(step, plan: options.planName)
+            // Ensure the destination directory exists — the PNG writer
+            // (CGImageDestinationCreateWithURL) does not create intermediate
+            // directories, so a screenshot into a not-yet-created artifacts dir
+            // would silently fail. (snapshot/AX-dump already do this.)
+            try? FileManager.default.createDirectory(
+                at: URL(fileURLWithPath: path).deletingLastPathComponent(),
+                withIntermediateDirectories: true)
             let ok: Bool
             var fallbackMessage: String? = nil
             if let t = step.target {
