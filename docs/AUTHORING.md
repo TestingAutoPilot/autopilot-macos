@@ -48,12 +48,12 @@ You / an agent  ──writes──▶  plan.json  ──fed to──▶  AutoPil
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "human-readable plan name",
   "target": { "bundleId": "com.example.app" },
   "defaults": { "timeoutMs": 5000, "retryIntervalMs": 100 },
   "steps": [
-    { "id": "step-1", "action": "click", "target": { "identifier": "okButton" } }
+    { "id": "step-1", "action": "click", "level": "happyPath", "target": { "identifier": "okButton" } }
   ]
 }
 ```
@@ -62,7 +62,7 @@ Required top-level fields:
 
 | Field | Required | Notes |
 |---|---|---|
-| `schemaVersion` | yes | Must be exactly `"1.0"`. Any other value is rejected. |
+| `schemaVersion` | yes | Must be exactly `"1.1"`. Any other value is rejected. |
 | `name` | yes | Free text; appears in the report. |
 | `target` | yes | Must set **either** `bundleId` **or** `path` (see §3). |
 | `steps` | yes | Ordered list of step objects (§4). May be empty. |
@@ -104,11 +104,14 @@ Required top-level fields:
 Each step is one action. Common shape:
 
 ```json
-{ "id": "unique-id", "action": "<action>", "target": { ... }, "args": { ... }, "assert": { ... }, "timeoutMs": 4000 }
+{ "id": "unique-id", "action": "<action>", "level": "happyPath", "target": { ... }, "args": { ... }, "assert": { ... }, "timeoutMs": 4000 }
 ```
 
 - `id` — **must be unique** within the plan (duplicates are rejected). Appears in
   the report, so name it meaningfully (`type-search-query`, not `s3`).
+- `level` — **REQUIRED** on every step. The step's coverage tier — one of
+  `happyPath`, `integrationSuite`, `tryToBreakIt` (see §4a). A plan with a step
+  missing `level`, or with an invalid value, is rejected at parse time.
 - `timeoutMs` (optional per-step) overrides the plan default for this step only.
 - `captureTarget` (optional, bool) — when `true`, AutoPilot saves a cropped
   screenshot of the step's `target` element on **any** outcome (pass or fail) as
@@ -139,72 +142,142 @@ Each step is one action. Common shape:
 | `snapshot` | optional | `reference`,`maxDiff` | Captures a region; writes a reference PNG on first run, diffs against it on later runs. Visual regression. See §13. |
 | `wait` | no | `seconds` | Fixed delay. **Discouraged** — prefer `waitFor`. Use only as a last resort. |
 
+## 4a. Comprehensive testing — the `level` tier + AX **and** vision
+
+A good plan is *comprehensive* in two independent dimensions. Author for both.
+
+### Dimension 1 — coverage tier (`level`, required)
+
+Every step is tagged with one of three cumulative tiers:
+
+```
+happyPath   ⊂   integrationSuite   ⊂   tryToBreakIt
+(innermost)     (middle)               (full set)
+```
+
+| Tier | What it covers | The question it answers |
+|---|---|---|
+| `happyPath` | The expected flow works with **valid** input. The minimal "is it alive and correct" set. | "Does it do what I want it to?" |
+| `integrationSuite` | Features working **together** — realistic end-to-end flows, broader functional coverage beyond the single happy path. | "Do the pieces work together?" |
+| `tryToBreakIt` | **Adversarial** — bad data, boundary values, out-of-order or rapid actions. Assert the app refuses or degrades **gracefully**. | "Can we break it?" |
+
+**Cumulative, no duplication.** A step is tagged at exactly one tier. A run *at* a
+tier executes that tier **plus every tier below it** — so each test case is written
+once and reused by the higher tiers:
+
+| Run at level | Executes | Skips |
+|---|---|---|
+| `happyPath` | happyPath | integrationSuite, tryToBreakIt |
+| `integrationSuite` | happyPath + integrationSuite | tryToBreakIt |
+| `tryToBreakIt` (default) | all three | — |
+
+This is smoke ⊂ regression ⊂ full. CI maps naturally: PRs run `happyPath`, merges
+run `integrationSuite`, nightly runs `tryToBreakIt`.
+
+**`level` is a LABEL — it does NOT invert pass/fail.** A `tryToBreakIt` step still
+**passes** by asserting the app refused correctly — an error message appears, the
+submit button stays disabled, the bad value is rejected. Write the assertion to
+express "should reject"; the tier only says which coverage bucket the step is in.
+
+```jsonc
+// A tryToBreakIt step passes when the app correctly refuses bad input:
+{ "id": "submit-empty",  "action": "click",  "level": "tryToBreakIt",
+  "target": { "identifier": "submit" } },
+{ "id": "assert-rejected", "action": "assert", "level": "tryToBreakIt",
+  "target": { "identifier": "form-error" },
+  "assert": { "property": "value", "op": "contains", "expected": "required" } }
+```
+
+The report breaks results down per tier **and** cumulatively, so you can see
+"happyPath 12/12, integrationSuite 6/6, tryToBreakIt 9/9" at a glance.
+
+### Dimension 2 — verify **structure** (AX) *and* **rendering** (vision)
+
+Targeting and most assertions go through the accessibility tree — that confirms an
+element *exists, is named X, is enabled/has value Y*. It **cannot** confirm the
+element *rendered correctly*. Where appearance is the requirement, add a visual
+check alongside the structural one:
+
+- **Target via AX first** — match on the most stable handle (the accessibility
+  `identifier`; on web, the element's `id`). Fall back to role+title only when no id exists.
+- **Add vision where it adds signal** — for "a chart drew", "the badge is the right
+  color", "the layout didn't regress", or an AX-opaque custom/canvas control, add a
+  `snapshot` / `assertRegion` / `assertPixel` (§13, §20), or use a `vision` selector
+  (§7) to find an AX-opaque target. AX says the button is named "Save"; only pixels
+  confirm it actually painted, un-clipped, in the right place.
+
+A comprehensive plan therefore tags every step's `level` **and**, for
+appearance-critical steps, verifies both the structure and the rendering. See
+`Fixtures/TestHostApp/comprehensive-reference.json` for a worked example spanning
+all three tiers and both dimensions.
+
 ### Worked examples for each action
 
 ```jsonc
+// Every step needs a `level` (shown here as happyPath). See §4a.
 // click / press — press is more robust on small controls (checkboxes, etc.)
-{ "id": "ok",     "action": "click", "target": { "identifier": "okButton" } }
-{ "id": "toggle", "action": "press", "target": { "identifier": "flagCheckbox" } }
+{ "id": "ok",     "action": "click", "level": "happyPath", "target": { "identifier": "okButton" } }
+{ "id": "toggle", "action": "press", "level": "happyPath", "target": { "identifier": "flagCheckbox" } }
 
 // menu — the ONLY way to drive a command with no key equivalent
-{ "id": "rainbow", "action": "menu", "args": { "menuPath": ["View", "Rainbow Brackets"] } }
+{ "id": "rainbow", "action": "menu", "level": "happyPath", "args": { "menuPath": ["View", "Rainbow Brackets"] } }
 
 // type — plain, then the variants
-{ "id": "t1", "action": "type", "target": { "identifier": "editorTextView" },
+{ "id": "t1", "action": "type", "level": "happyPath", "target": { "identifier": "editorTextView" },
   "args": { "text": "hello\nworld" } }
 // into a field the app already focused (search/rename): skip the focus-click.
 // type sends virtual-key events, so it works on NSSearchField (whose editing
 // happens in a child field editor) — no need for keyPress-per-character.
-{ "id": "t2", "action": "type", "target": { "identifier": "searchField" },
+{ "id": "t2", "action": "type", "level": "happyPath", "target": { "identifier": "searchField" },
   "args": { "text": "query", "focus": false } }
 // replace a field's contents and commit (inline rename): clear, type, press Return
-{ "id": "t3", "action": "type", "target": { "identifier": "renameField" },
+{ "id": "t3", "action": "type", "level": "happyPath", "target": { "identifier": "renameField" },
   "args": { "text": "newname.txt", "clear": true, "commit": true } }
 
 // keyPress — chords incl. punctuation
-{ "id": "find",  "action": "keyPress", "target": { "identifier": "editorTextView" },
+{ "id": "find",  "action": "keyPress", "level": "happyPath", "target": { "identifier": "editorTextView" },
   "args": { "keys": "cmd+f" } }
-{ "id": "prefs", "action": "keyPress", "target": { "identifier": "editorTextView" },
+{ "id": "prefs", "action": "keyPress", "level": "happyPath", "target": { "identifier": "editorTextView" },
   "args": { "keys": "cmd+," } }
 
 // drag — element to element (file drag-drop is NOT supported; see below)
-{ "id": "move", "action": "drag", "target": { "identifier": "fileRow" },
+{ "id": "move", "action": "drag", "level": "happyPath", "target": { "identifier": "fileRow" },
   "args": { "to": { "identifier": "folderRow" } } }
 
 // scroll
-{ "id": "down", "action": "scroll", "target": { "identifier": "editorTextView" },
+{ "id": "down", "action": "scroll", "level": "happyPath", "target": { "identifier": "editorTextView" },
   "args": { "deltaY": -300 } }
 
 // setValue — sets the AX value directly, but fires NO action/end-editing.
 // Use it for fast field population; use `type` with "commit" when the commit matters.
-{ "id": "fill", "action": "setValue", "target": { "identifier": "nameField" },
+{ "id": "fill", "action": "setValue", "level": "happyPath", "target": { "identifier": "nameField" },
   "args": { "text": "draft" } }
 
 // assert: a property, presence, or a menu checkmark
-{ "id": "count",   "action": "assert", "target": { "identifier": "countLabel" },
+{ "id": "count",   "action": "assert", "level": "happyPath", "target": { "identifier": "countLabel" },
   "assert": { "property": "value", "op": "contains", "expected": "count: 1" } }
-{ "id": "checked", "action": "assert", "target": { "identifier": "wrapMenuItem" },
+{ "id": "checked", "action": "assert", "level": "happyPath", "target": { "identifier": "wrapMenuItem" },
   "assert": { "property": "marked", "op": "equals", "expected": "true" } }
-{ "id": "barGone", "action": "assert", "target": { "identifier": "findField" },
+{ "id": "barGone", "action": "assert", "level": "happyPath", "target": { "identifier": "findField" },
   "assert": { "property": "value", "op": "notExists" } }
 
 // waitFor (appear / disappear) and screenshot
-{ "id": "appear", "action": "waitFor", "target": { "identifier": "sheet" },
+{ "id": "appear", "action": "waitFor", "level": "happyPath", "target": { "identifier": "sheet" },
   "args": { "present": true } }
 
 // screenshot — three modes
 // Full display (no target):
-{ "id": "snap",   "action": "screenshot", "args": { "path": "/tmp/state.png" } }
+{ "id": "snap",   "action": "screenshot", "level": "happyPath", "args": { "path": "/tmp/state.png" } }
 // Element-scoped (crops to the sheet + 16pt padding on all sides):
-{ "id": "sheet-shot", "action": "screenshot",
+{ "id": "sheet-shot", "action": "screenshot", "level": "happyPath",
   "target": { "identifier": "saveSheet" }, "args": { "padding": 16 } }
 // Absolute region:
-{ "id": "toolbar-shot", "action": "screenshot",
+{ "id": "toolbar-shot", "action": "screenshot", "level": "happyPath",
   "args": { "atX": 0, "atY": 0, "width": 800, "height": 50 } }
 
 // captureTarget — attach an element crop to ANY step, pass or fail, without a
 // dedicated screenshot step. 8pt default padding.
-{ "id": "check-label", "action": "assert", "target": { "identifier": "statusLabel" },
+{ "id": "check-label", "action": "assert", "level": "happyPath", "target": { "identifier": "statusLabel" },
   "assert": { "property": "value", "op": "equals", "expected": "Ready" },
   "captureTarget": true }
 ```
@@ -242,7 +315,7 @@ Each step is one action. Common shape:
 An `assert` step carries an `assert` block instead of (or alongside) plain args:
 
 ```json
-{ "id": "check", "action": "assert",
+{ "id": "check", "action": "assert", "level": "happyPath",
   "target": { "identifier": "countLabel" },
   "assert": { "property": "value", "op": "contains", "expected": "count: 1" } }
 ```
@@ -400,7 +473,7 @@ These aren't optional niceties — skipping them causes flaky runs.
    and a leaked instance poisons the next run (the resolver may walk a different
    instance's tree). Last step:
    ```json
-   { "id": "quit", "action": "terminate" }
+   { "id": "quit", "action": "terminate", "level": "happyPath" }
    ```
 
 2. **Start from known state with a reset hook.** Pass a launch arg the app honors
@@ -461,23 +534,26 @@ text, and quits.
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "medit: type into editor",
   "target": { "bundleId": "com.jschwefel.medit", "launchArgs": ["--reset-state"] },
   "defaults": { "timeoutMs": 6000, "retryIntervalMs": 100 },
   "steps": [
-    { "id": "wait-window", "action": "waitFor",
+    { "id": "wait-window", "action": "waitFor", "level": "happyPath",
+      "level": "happyPath",
       "target": { "role": "AXWindow" }, "args": { "present": true } },
 
-    { "id": "type", "action": "type",
+    { "id": "type", "action": "type", "level": "happyPath",
+      "level": "happyPath",
       "target": { "identifier": "editorTextView" },
       "args": { "text": "hello world" } },
 
-    { "id": "assert-value", "action": "assert",
+    { "id": "assert-value", "action": "assert", "level": "happyPath",
+      "level": "happyPath",
       "target": { "identifier": "editorTextView" },
       "assert": { "property": "value", "op": "contains", "expected": "hello world" } },
 
-    { "id": "quit", "action": "terminate" }
+    { "id": "quit", "action": "terminate", "level": "happyPath" }
   ]
 }
 ```
@@ -507,12 +583,12 @@ included steps are **prepended** before the host plan's steps:
 `setups/launch.json`:
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "launch clean",
   "target": { "bundleId": "com.example.app", "launchArgs": ["--reset-state"] },
   "defaults": { "timeoutMs": 6000, "retryIntervalMs": 100 },
   "steps": [
-    { "id": "wait-window", "action": "waitFor", "target": { "role": "AXWindow" }, "args": { "present": true } }
+    { "id": "wait-window", "action": "waitFor", "level": "happyPath", "target": { "role": "AXWindow" }, "args": { "present": true } }
   ]
 }
 ```
@@ -520,14 +596,14 @@ included steps are **prepended** before the host plan's steps:
 `my-test.json`:
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "my test",
   "include": ["setups/launch.json"],
   "target": { "bundleId": "com.example.app", "launchArgs": ["--reset-state"] },
   "defaults": { "timeoutMs": 6000, "retryIntervalMs": 100 },
   "steps": [
-    { "id": "do-thing", "action": "click", "target": { "identifier": "thingButton" } },
-    { "id": "quit", "action": "terminate" }
+    { "id": "do-thing", "action": "click", "level": "happyPath", "target": { "identifier": "thingButton" } },
+    { "id": "quit", "action": "terminate", "level": "happyPath" }
   ]
 }
 ```
@@ -603,18 +679,18 @@ artifacts directory. Omitting it is usually the right call.
 
 ```jsonc
 // Full display
-{ "id": "state", "action": "screenshot" }
+{ "id": "state", "action": "screenshot", "level": "happyPath" }
 
 // Element-scoped — the Save sheet + 16 pt breathing room
-{ "id": "save-sheet", "action": "screenshot",
+{ "id": "save-sheet", "action": "screenshot", "level": "happyPath",
   "target": { "identifier": "saveSheet" }, "args": { "padding": 16 } }
 
 // Absolute region (toolbar strip)
-{ "id": "toolbar", "action": "screenshot",
+{ "id": "toolbar", "action": "screenshot", "level": "happyPath",
   "args": { "atX": 0, "atY": 0, "width": 800, "height": 44 } }
 
 // Custom output path
-{ "id": "before", "action": "screenshot", "args": { "path": "/tmp/before.png" } }
+{ "id": "before", "action": "screenshot", "level": "happyPath", "args": { "path": "/tmp/before.png" } }
 ```
 
 ### `captureTarget` — visual log without extra steps
@@ -624,7 +700,7 @@ saves a cropped screenshot of that element as `<step-id>-target.png` in the
 artifacts dir on **every run** — pass or fail.
 
 ```jsonc
-{ "id": "check-label", "action": "assert",
+{ "id": "check-label", "action": "assert", "level": "happyPath",
   "target": { "identifier": "statusLabel" },
   "assert": { "property": "value", "op": "equals", "expected": "Ready" },
   "captureTarget": true }
@@ -671,12 +747,12 @@ lets you verify them by sampling a screen pixel's color.
 
 ```jsonc
 // Sample at a target element's center, offset by (dx, dy):
-{ "id": "bracket-is-gold", "action": "assertPixel",
+{ "id": "bracket-is-gold", "action": "assertPixel", "level": "happyPath",
   "target": { "identifier": "editorTextView" },
   "args": { "offsetX": 14, "offsetY": -3, "color": "#E5B567", "tolerance": 24 } }
 
 // Or sample an absolute screen point:
-{ "id": "gutter-visible", "action": "assertPixel",
+{ "id": "gutter-visible", "action": "assertPixel", "level": "happyPath",
   "args": { "atX": 30, "atY": 200, "color": "#2B2B2B", "tolerance": 16 } }
 ```
 
@@ -844,7 +920,7 @@ When a view is *hidden* rather than *removed*, it often stays in the AX tree, so
 `assert notExists` won't fire. Assert its geometry instead:
 
 ```jsonc
-{ "id": "sidebar-collapsed", "action": "assert",
+{ "id": "sidebar-collapsed", "action": "assert", "level": "happyPath",
   "target": { "identifier": "sidebarOutline" },
   "assert": { "property": "size", "op": "equals", "expected": "0,0" } }
 ```
@@ -880,19 +956,19 @@ Three tools, increasing robustness:
 
 ```jsonc
 // Single pixel — fine for solid fills, fragile on thin glyphs.
-{ "id": "px", "action": "assertPixel",
+{ "id": "px", "action": "assertPixel", "level": "happyPath",
   "target": { "identifier": "swatch" },
   "args": { "color": "#3478F6", "tolerance": 16 } }
 
 // Region average/dominant — robust for glyphs (anti-aliased edges).
 // "dominant" quantizes colors so a few edge pixels don't skew the result.
-{ "id": "bracket-gold", "action": "assertRegion",
+{ "id": "bracket-gold", "action": "assertRegion", "level": "happyPath",
   "target": { "identifier": "editorTextView" },
   "args": { "offsetX": 14, "offsetY": -3, "width": 10, "height": 14,
             "mode": "dominant", "color": "#E5B567", "tolerance": 28 } }
 
 // Snapshot regression — first run writes the reference, later runs diff it.
-{ "id": "toolbar", "action": "snapshot",
+{ "id": "toolbar", "action": "snapshot", "level": "happyPath",
   "target": { "identifier": "toolbar" },
   "args": { "reference": "ref/toolbar.png", "width": 240, "height": 36,
             "maxDiff": 0.02 } }
@@ -948,7 +1024,7 @@ All inspection commands need the Accessibility permission (`doctor` checks it).
 
 Before running a plan:
 
-- [ ] `schemaVersion` is `"1.0"`.
+- [ ] `schemaVersion` is `"1.1"`.
 - [ ] `target` sets exactly one of `bundleId` / `path` (path → a real `.app`).
 - [ ] Every step `id` is unique and descriptive.
 - [ ] Selectors use **`identifier`/`role`/`title`/`value`** (not `label`/`path`,

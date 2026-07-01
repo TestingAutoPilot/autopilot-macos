@@ -14,7 +14,7 @@
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "const": "1.0"
+      "const": "1.1"
     },
     "name": {
       "type": "string"
@@ -102,7 +102,7 @@
         },
         "identifier": {
           "type": "string",
-          "description": "AXIdentifier \u2014 the preferred locator."
+          "description": "AXIdentifier — the preferred locator."
         },
         "title": {
           "type": "string"
@@ -284,7 +284,8 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "action"
+        "action",
+        "level"
       ],
       "properties": {
         "id": {
@@ -312,6 +313,15 @@
             "assert",
             "wait"
           ]
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "happyPath",
+            "integrationSuite",
+            "tryToBreakIt"
+          ],
+          "description": "REQUIRED coverage tier, cumulative: happyPath ⊂ integrationSuite ⊂ tryToBreakIt. A run at a level runs that tier plus all below. A LABEL — does not invert pass/fail; a tryToBreakIt step passes by asserting the app refused correctly."
         },
         "target": {
           "$ref": "#/$defs/selector"

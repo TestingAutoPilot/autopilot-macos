@@ -61,11 +61,11 @@ import Foundation
 
     @Test func lintCleanPlanExits0() throws {
         let plan = """
-        {"schemaVersion":"1.0","name":"ok","target":{"bundleId":"a"},
+        {"schemaVersion":"1.1","name":"ok","target":{"bundleId":"a"},
          "steps":[
-           {"id":"w","action":"waitFor","target":{"role":"AXWindow"},"args":{"present":true}},
-           {"id":"c","action":"click","target":{"identifier":"ok"}},
-           {"id":"q","action":"terminate"}
+           {"id":"w","level":"happyPath","action":"waitFor","target":{"role":"AXWindow"},"args":{"present":true}},
+           {"id":"c","level":"happyPath","action":"click","target":{"identifier":"ok"}},
+           {"id":"q","level":"happyPath","action":"terminate"}
          ]}
         """
         let url = try tempFile(plan)
@@ -76,8 +76,8 @@ import Foundation
 
     @Test func lintFlagsProblemsAndExits1() throws {
         let plan = """
-        {"schemaVersion":"1.0","name":"bad","target":{"bundleId":"a"},
-         "steps":[{"id":"c","action":"click","target":{"label":"x"}}]}
+        {"schemaVersion":"1.1","name":"bad","target":{"bundleId":"a"},
+         "steps":[{"id":"c","level":"happyPath","action":"click","target":{"label":"x"}}]}
         """
         let url = try tempFile(plan)
         let r = try Self.run(["lint", url.path])

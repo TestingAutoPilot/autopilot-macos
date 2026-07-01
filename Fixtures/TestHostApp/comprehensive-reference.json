@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "1.1",
+  "name": "testhostapp-comprehensive-reference",
+  "target": { "bundleId": "com.autopilot.testhostapp" },
+  "defaults": { "timeoutMs": 5000, "retryIntervalMs": 100 },
+
+  "//": "Reference example for AUTHORING.md §4a. Demonstrates the two dimensions of a comprehensive plan: (1) the cumulative level tier — happyPath ⊂ integrationSuite ⊂ tryToBreakIt (steps are grouped by tier below, in order); (2) verifying STRUCTURE (AX) and RENDERING (vision) together (see assert-swatch-exists + assert-swatch-rendered-color). Every tryToBreakIt step PASSES by asserting the app refused/handled bad input correctly — level is a label, it does not invert pass/fail. Authoring exemplar; not part of the CI gate.",
+
+  "steps": [
+    { "id": "hp-wait-window",
+      "action": "waitFor",
+      "level": "happyPath",
+      "target": { "role": "AXWindow" },
+      "args": { "present": true } },
+
+    { "id": "hp-type-valid-name",
+      "action": "type",
+      "level": "happyPath",
+      "target": { "identifier": "nameField" },
+      "args": { "text": "Ada", "clear": true } },
+
+    { "id": "hp-assert-status-reflects-name",
+      "action": "assert",
+      "level": "happyPath",
+      "target": { "identifier": "statusLabel" },
+      "assert": { "property": "value", "op": "contains", "expected": "Ada" } },
+
+    { "id": "hp-click-ok",
+      "action": "click",
+      "level": "happyPath",
+      "target": { "identifier": "okButton" } },
+
+    { "id": "hp-assert-swatch-exists",
+      "action": "assert",
+      "level": "happyPath",
+      "target": { "identifier": "colorSwatch" },
+      "assert": { "property": "size", "op": "notEquals", "expected": "0,0" } },
+
+    { "id": "hp-assert-swatch-rendered-color",
+      "action": "assertRegion",
+      "level": "happyPath",
+      "target": { "identifier": "colorSwatch" },
+      "args": { "color": "#3478F6", "width": 12, "height": 12, "mode": "dominant", "tolerance": 16 } },
+
+    { "id": "it-focus-search",
+      "action": "click",
+      "level": "integrationSuite",
+      "target": { "identifier": "searchField" } },
+
+    { "id": "it-type-search-query",
+      "action": "type",
+      "level": "integrationSuite",
+      "target": { "identifier": "searchField" },
+      "args": { "text": "photo", "focus": false } },
+
+    { "id": "it-assert-table-filtered",
+      "action": "assert",
+      "level": "integrationSuite",
+      "target": { "identifier": "row-photo.jpg" },
+      "assert": { "property": "value", "op": "exists" } },
+
+    { "id": "it-select-filtered-row",
+      "action": "click",
+      "level": "integrationSuite",
+      "target": { "identifier": "row-photo.jpg" } },
+
+    { "id": "it-assert-selection-propagates",
+      "action": "assert",
+      "level": "integrationSuite",
+      "target": { "identifier": "tableSelLabel" },
+      "assert": { "property": "value", "op": "contains", "expected": "photo.jpg" } },
+
+    { "id": "tb-empty-name",
+      "action": "setValue",
+      "level": "tryToBreakIt",
+      "target": { "identifier": "nameField" },
+      "args": { "text": "" } },
+
+    { "id": "tb-assert-empty-name-handled",
+      "action": "assert",
+      "level": "tryToBreakIt",
+      "target": { "identifier": "nameField" },
+      "assert": { "property": "enabled", "op": "equals", "expected": "true" } },
+
+    { "id": "tb-click-locked",
+      "action": "click",
+      "level": "tryToBreakIt",
+      "target": { "identifier": "lockedButton" } },
+
+    { "id": "tb-assert-locked-stayed-disabled",
+      "action": "assert",
+      "level": "tryToBreakIt",
+      "target": { "identifier": "lockedButton" },
+      "assert": { "property": "enabled", "op": "equals", "expected": "false" } },
+
+    { "id": "tb-no-match-search",
+      "action": "setValue",
+      "level": "tryToBreakIt",
+      "target": { "identifier": "searchField" },
+      "args": { "text": "zzz-nonexistent-zzz" } },
+
+    { "id": "tb-assert-no-phantom-row",
+      "action": "assert",
+      "level": "tryToBreakIt",
+      "target": { "identifier": "row-photo.jpg" },
+      "assert": { "property": "value", "op": "notExists" } },
+
+    { "id": "tb-quit",
+      "action": "terminate",
+      "level": "happyPath" }
+  ]
+}
