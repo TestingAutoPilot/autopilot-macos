@@ -63,8 +63,8 @@ import Foundation
         let (s, out) = makeServer()
         // A plan with a missing-terminate + no window-wait → lint findings.
         let plan: [String: Any] = [
-            "schemaVersion": "1.0", "name": "p", "target": ["bundleId": "a"],
-            "steps": [["id": "c", "action": "click", "target": ["identifier": "ok"]]],
+            "schemaVersion": "1.1", "name": "p", "target": ["bundleId": "a"],
+            "steps": [["id": "c", "level":"happyPath","action": "click", "target": ["identifier": "ok"]]],
         ]
         s.handle(["jsonrpc": "2.0", "id": 7, "method": "tools/call",
                   "params": ["name": "lint_plan", "arguments": ["plan": plan]]])

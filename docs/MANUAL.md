@@ -79,24 +79,24 @@ Save this plan as `calculator-smoke.json`:
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "calculator-smoke",
   "target": { "bundleId": "com.apple.calculator" },
   "steps": [
-    { "id": "wait-window", "action": "waitFor",
+    { "id": "wait-window", "action": "waitFor", "level": "happyPath",
       "target": { "role": "AXWindow" } },
-    { "id": "press-1",   "action": "click",
+    { "id": "press-1",   "action": "click", "level": "happyPath",
       "target": { "identifier": "One" } },
-    { "id": "press-plus","action": "click",
+    { "id": "press-plus","action": "click", "level": "happyPath",
       "target": { "identifier": "Add" } },
-    { "id": "press-2",   "action": "click",
+    { "id": "press-2",   "action": "click", "level": "happyPath",
       "target": { "identifier": "Two" } },
-    { "id": "press-eq",  "action": "click",
+    { "id": "press-eq",  "action": "click", "level": "happyPath",
       "target": { "identifier": "Equals" } },
-    { "id": "check-result", "action": "assert",
+    { "id": "check-result", "action": "assert", "level": "happyPath",
       "target": { "role": "AXStaticText", "within": { "identifier": "StandardResultView" } },
       "assert": { "property": "value", "op": "equals", "expected": "3" } },
-    { "id": "done", "action": "terminate" }
+    { "id": "done", "action": "terminate", "level": "happyPath" }
   ]
 }
 ```
@@ -141,19 +141,19 @@ The executor knows nothing about your app beyond what the plan and the live AX t
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "calculator-smoke",
   "target": { "bundleId": "com.apple.calculator" },
   "steps": [...]
 }
 ```
 
-- `schemaVersion` must be `"1.0"` — any other value is rejected.
+- `schemaVersion` must be `"1.1"` — any other value is rejected.
 - `name` appears in reports. Make it descriptive.
 - `target.bundleId` tells AutoPilot which app to launch. You can also use `target.path` with an absolute `.app` path instead.
 
 ```json
-{ "id": "wait-window", "action": "waitFor",
+{ "id": "wait-window", "action": "waitFor", "level": "happyPath",
   "target": { "role": "AXWindow" } }
 ```
 
@@ -162,7 +162,7 @@ The executor knows nothing about your app beyond what the plan and the live AX t
 - `role` is the AX role — `AXWindow` matches the app's main window.
 
 ```json
-{ "id": "press-1", "action": "click",
+{ "id": "press-1", "action": "click", "level": "happyPath",
   "target": { "identifier": "One" } }
 ```
 
@@ -170,7 +170,7 @@ The executor knows nothing about your app beyond what the plan and the live AX t
 - `target.identifier` matches the element's `AXIdentifier`. This is the preferred, most stable way to target elements — it is set in the app's source code and does not change when the UI is restyled.
 
 ```json
-{ "id": "check-result", "action": "assert",
+{ "id": "check-result", "action": "assert", "level": "happyPath",
   "target": { "role": "AXStaticText", "within": { "identifier": "StandardResultView" } },
   "assert": { "property": "value", "op": "equals", "expected": "3" } }
 ```
@@ -182,7 +182,7 @@ The executor knows nothing about your app beyond what the plan and the live AX t
 - If the actual value does not match, the step fails and AutoPilot writes the actual value to the report so you can see what the app produced.
 
 ```json
-{ "id": "done", "action": "terminate" }
+{ "id": "done", "action": "terminate", "level": "happyPath" }
 ```
 
 - Always end with `terminate`. Without it, the app stays running and can pollute the next run.
@@ -242,10 +242,10 @@ This scans the AX tree for buttons, text fields, and other interactive controls,
 ### Navigation: `click`, `doubleClick`, `rightClick`, `press`
 
 ```json
-{ "id": "open", "action": "click",       "target": { "identifier": "openButton" } }
-{ "id": "edit", "action": "doubleClick", "target": { "identifier": "fileRow" } }
-{ "id": "ctx",  "action": "rightClick",  "target": { "identifier": "fileRow" } }
-{ "id": "chk",  "action": "press",       "target": { "identifier": "flagCheckbox" } }
+{ "id": "open", "action": "click", "level": "happyPath",       "target": { "identifier": "openButton" } }
+{ "id": "edit", "action": "doubleClick", "level": "happyPath", "target": { "identifier": "fileRow" } }
+{ "id": "ctx",  "action": "rightClick", "level": "happyPath",  "target": { "identifier": "fileRow" } }
+{ "id": "chk",  "action": "press", "level": "happyPath",       "target": { "identifier": "flagCheckbox" } }
 ```
 
 Prefer `press` over `click` for buttons, checkboxes, and toggles. `press` performs the AX press action rather than a coordinate click, so it works even when the element has no clickable frame or when the click would miss a small hit area.
@@ -253,7 +253,7 @@ Prefer `press` over `click` for buttons, checkboxes, and toggles. `press` perfor
 ### Menus: `menu`
 
 ```json
-{ "id": "wrap", "action": "menu", "args": { "menuPath": ["View", "Wrap Lines"] } }
+{ "id": "wrap", "action": "menu", "level": "happyPath", "args": { "menuPath": ["View", "Wrap Lines"] } }
 ```
 
 `menu` is the only reliable way to trigger a menu command that has no keyboard shortcut. A `click` cannot open a closed menu bar item. `menuPath` is an array of titles walking the menu hierarchy.
@@ -261,19 +261,19 @@ Prefer `press` over `click` for buttons, checkboxes, and toggles. `press` perfor
 ### Text input: `type`, `setValue`, `keyPress`
 
 ```json
-{ "id": "search",  "action": "type",
+{ "id": "search",  "action": "type", "level": "happyPath",
   "target": { "identifier": "searchField" },
   "args": { "text": "query", "focus": false } }
 
-{ "id": "rename",  "action": "type",
+{ "id": "rename",  "action": "type", "level": "happyPath",
   "target": { "identifier": "renameField" },
   "args": { "text": "newname.txt", "clear": true, "commit": true } }
 
-{ "id": "fill",    "action": "setValue",
+{ "id": "fill",    "action": "setValue", "level": "happyPath",
   "target": { "identifier": "nameField" },
   "args": { "text": "draft" } }
 
-{ "id": "save",    "action": "keyPress",
+{ "id": "save",    "action": "keyPress", "level": "happyPath",
   "target": { "identifier": "editorTextView" },
   "args": { "keys": "cmd+s" } }
 ```
@@ -285,10 +285,10 @@ Prefer `press` over `click` for buttons, checkboxes, and toggles. `press` perfor
 ### Waiting: `waitFor`, `wait`
 
 ```json
-{ "id": "sheet-open",  "action": "waitFor",
+{ "id": "sheet-open",  "action": "waitFor", "level": "happyPath",
   "target": { "identifier": "saveSheet" }, "args": { "present": true } }
 
-{ "id": "sheet-close", "action": "waitFor",
+{ "id": "sheet-close", "action": "waitFor", "level": "happyPath",
   "target": { "identifier": "saveSheet" }, "args": { "present": false } }
 ```
 
@@ -299,10 +299,10 @@ Prefer `press` over `click` for buttons, checkboxes, and toggles. `press` perfor
 ### Visual capture: `screenshot`, `assertPixel`, `assertRegion`, `snapshot`
 
 ```json
-{ "id": "state",   "action": "screenshot" }
-{ "id": "toolbar", "action": "screenshot",
+{ "id": "state",   "action": "screenshot", "level": "happyPath" }
+{ "id": "toolbar", "action": "screenshot", "level": "happyPath",
   "args": { "atX": 0, "atY": 0, "width": 800, "height": 44 } }
-{ "id": "gutter",  "action": "assertPixel",
+{ "id": "gutter",  "action": "assertPixel", "level": "happyPath",
   "args": { "atX": 30, "atY": 200, "color": "#2B2B2B", "tolerance": 16 } }
 ```
 
@@ -311,8 +311,8 @@ These actions require Screen Recording permission (checked by `autopilot doctor`
 ### Flow: `launch`, `terminate`
 
 ```json
-{ "id": "start", "action": "launch" }
-{ "id": "quit",  "action": "terminate" }
+{ "id": "start", "action": "launch", "level": "happyPath" }
+{ "id": "quit",  "action": "terminate", "level": "happyPath" }
 ```
 
 `launch` is a no-op marker — the app is always launched automatically before step 1. It is useful as a visual separator in long plans. `terminate` quits the app. Always include it as your last step.
@@ -350,19 +350,19 @@ Every `assert` step has an `assert` block with three fields: `property`, `op`, a
 ### Examples
 
 ```json
-{ "id": "label-check",   "action": "assert",
+{ "id": "label-check",   "action": "assert", "level": "happyPath",
   "target": { "identifier": "statusLabel" },
   "assert": { "property": "value", "op": "equals", "expected": "Ready" } }
 
-{ "id": "row-count",     "action": "assert",
+{ "id": "row-count",     "action": "assert", "level": "happyPath",
   "target": { "role": "AXRow" },
   "assert": { "property": "count", "op": "greaterThan", "expected": "0" } }
 
-{ "id": "panel-gone",    "action": "assert",
+{ "id": "panel-gone",    "action": "assert", "level": "happyPath",
   "target": { "identifier": "findBar" },
   "assert": { "property": "value", "op": "notExists" } }
 
-{ "id": "version-match", "action": "assert",
+{ "id": "version-match", "action": "assert", "level": "happyPath",
   "target": { "identifier": "versionLabel" },
   "assert": { "property": "value", "op": "matches", "expected": "^\\d+\\.\\d+" } }
 ```
@@ -452,10 +452,10 @@ These are your primary debugging surface. Read the `actual` value in the report,
 Three modes:
 
 ```json
-{ "id": "full",    "action": "screenshot" }
-{ "id": "element", "action": "screenshot",
+{ "id": "full",    "action": "screenshot", "level": "happyPath" }
+{ "id": "element", "action": "screenshot", "level": "happyPath",
   "target": { "identifier": "saveSheet" }, "args": { "padding": 16 } }
-{ "id": "region",  "action": "screenshot",
+{ "id": "region",  "action": "screenshot", "level": "happyPath",
   "args": { "atX": 0, "atY": 0, "width": 800, "height": 44 } }
 ```
 
@@ -470,7 +470,7 @@ Requires Screen Recording permission. Without it, `screenshot` steps succeed but
 Add `"captureTarget": true` to any step that has a `target`. AutoPilot saves a cropped screenshot of that element as `<step-id>-target.png` on every run, pass or fail:
 
 ```json
-{ "id": "check-label", "action": "assert",
+{ "id": "check-label", "action": "assert", "level": "happyPath",
   "target": { "identifier": "statusLabel" },
   "assert": { "property": "value", "op": "equals", "expected": "Ready" },
   "captureTarget": true }
@@ -512,12 +512,12 @@ Factor common setup steps (launching the app, waiting for the window, resetting 
 `setups/launch.json`:
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "launch clean",
   "target": { "bundleId": "com.example.myapp", "launchArgs": ["--reset-state"] },
   "defaults": { "timeoutMs": 6000, "retryIntervalMs": 100 },
   "steps": [
-    { "id": "wait-window", "action": "waitFor",
+    { "id": "wait-window", "action": "waitFor", "level": "happyPath",
       "target": { "role": "AXWindow" }, "args": { "present": true } }
   ]
 }
@@ -526,14 +526,14 @@ Factor common setup steps (launching the app, waiting for the window, resetting 
 `tests/my-feature.json`:
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "my feature test",
   "include": ["../setups/launch.json"],
   "target": { "bundleId": "com.example.myapp", "launchArgs": ["--reset-state"] },
   "defaults": { "timeoutMs": 6000, "retryIntervalMs": 100 },
   "steps": [
-    { "id": "do-thing", "action": "click", "target": { "identifier": "featureButton" } },
-    { "id": "quit", "action": "terminate" }
+    { "id": "do-thing", "action": "click", "level": "happyPath", "target": { "identifier": "featureButton" } },
+    { "id": "quit", "action": "terminate", "level": "happyPath" }
   ]
 }
 ```

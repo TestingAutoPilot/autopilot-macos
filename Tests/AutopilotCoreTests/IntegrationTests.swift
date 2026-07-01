@@ -52,19 +52,19 @@ import AutopilotCore
         let artifacts = FileManager.default.temporaryDirectory
             .appendingPathComponent("autopilot-it-\(UUID().uuidString)")
         let plan = Plan(
-            schemaVersion: "1.0",
+            schemaVersion: "1.1",
             name: "host: type updates status",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "type-name", action: .type,
+                Step(id: "type-name", action: .type, level: .happyPath,
                      target: Selector(role: "AXTextField", identifier: "nameField"),
                      args: { var a = ActionArgs(); a.text = "Ada"; return a }()),
-                Step(id: "assert-status", action: .assert,
+                Step(id: "assert-status", action: .assert, level: .happyPath,
                      target: Selector(identifier: "statusLabel"),
                      assert: Assertion(property: .value, op: .contains, expected: "Ada")),
                 // Terminate so we don't leak a TestHostApp instance across runs.
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let runner = PlanRunner(driver: MacOSDriver())
@@ -85,21 +85,21 @@ import AutopilotCore
         let artifacts = FileManager.default.temporaryDirectory
             .appendingPathComponent("autopilot-menu-\(UUID().uuidString)")
         let plan = Plan(
-            schemaVersion: "1.0",
+            schemaVersion: "1.1",
             name: "host: menu toggles flag",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor,
+                Step(id: "wait-window", action: .waitFor, level: .happyPath,
                      target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
                 // "Toggle Flag" has no key equivalent — only reachable via the menu.
-                Step(id: "menu-toggle", action: .menu,
+                Step(id: "menu-toggle", action: .menu, level: .happyPath,
                      args: { var a = ActionArgs(); a.menuPath = ["View", "Toggle Flag"]; return a }()),
-                Step(id: "assert-flag", action: .assert,
+                Step(id: "assert-flag", action: .assert, level: .happyPath,
                      target: Selector(identifier: "statusLabel"),
                      assert: Assertion(property: .value, op: .contains, expected: "flag=true")),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
@@ -119,23 +119,23 @@ import AutopilotCore
         let artifacts = FileManager.default.temporaryDirectory
             .appendingPathComponent("autopilot-sf-\(UUID().uuidString)")
         let plan = Plan(
-            schemaVersion: "1.0",
+            schemaVersion: "1.1",
             name: "host: type into search field",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor,
+                Step(id: "wait-window", action: .waitFor, level: .happyPath,
                      target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
                 // focus:false — the app already made the search field first
                 // responder; keycode-based type must land text in its field editor.
-                Step(id: "type-search", action: .type,
+                Step(id: "type-search", action: .type, level: .happyPath,
                      target: Selector(role: "AXTextField", identifier: "searchField"),
                      args: { var a = ActionArgs(); a.text = "Query 9"; a.focus = false; return a }()),
-                Step(id: "assert-search", action: .assert,
+                Step(id: "assert-search", action: .assert, level: .happyPath,
                      target: Selector(role: "AXTextField", identifier: "searchField"),
                      assert: Assertion(property: .value, op: .equals, expected: "Query 9")),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
@@ -154,17 +154,17 @@ import AutopilotCore
         // {role: AXButton} matches several buttons → ambiguous. `index` picks one,
         // so the click resolves instead of erroring.
         let plan = Plan(
-            schemaVersion: "1.0",
+            schemaVersion: "1.1",
             name: "host: index disambiguation",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor,
+                Step(id: "wait-window", action: .waitFor, level: .happyPath,
                      target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
-                Step(id: "click-first-button", action: .click,
+                Step(id: "click-first-button", action: .click, level: .happyPath,
                      target: Selector(role: "AXButton", index: 0)),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
@@ -184,19 +184,19 @@ import AutopilotCore
             .appendingPathComponent("autopilot-region-\(UUID().uuidString)")
         // colorSwatch is a solid #3478F6 view; assertRegion over its center must match.
         let plan = Plan(
-            schemaVersion: "1.0", name: "host: region color",
+            schemaVersion: "1.1", name: "host: region color",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                Step(id: "wait-window", action: .waitFor, level: .happyPath, target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
                 // dominant mode over the solid swatch. Captured pixels are
                 // normalized to sRGB, so the swatch's sRGB #3478F6 matches within
                 // a tight tolerance even on a wide-gamut display.
-                Step(id: "region", action: .assertRegion, target: Selector(identifier: "colorSwatch"),
+                Step(id: "region", action: .assertRegion, level: .happyPath, target: Selector(identifier: "colorSwatch"),
                      args: { var a = ActionArgs(); a.color = "#3478F6"; a.width = 12; a.height = 12
                              a.mode = "dominant"; a.tolerance = 16; return a }()),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
@@ -214,15 +214,15 @@ import AutopilotCore
         let artifacts = dir.appendingPathComponent("art")
         let refPath = "ref/swatch.png"   // does not exist
         func makePlan() -> Plan {
-            Plan(schemaVersion: "1.0", name: "host: snapshot",
+            Plan(schemaVersion: "1.1", name: "host: snapshot",
                  target: TargetApp(path: binary.path),
                  defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
                  steps: [
-                    Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                    Step(id: "wait-window", action: .waitFor, level: .happyPath, target: Selector(role: "AXWindow"),
                          args: { var a = ActionArgs(); a.present = true; return a }()),
-                    Step(id: "snap", action: .snapshot, target: Selector(identifier: "colorSwatch"),
+                    Step(id: "snap", action: .snapshot, level: .happyPath, target: Selector(identifier: "colorSwatch"),
                          args: { var a = ActionArgs(); a.reference = refPath; a.width = 30; a.height = 30; return a }()),
-                    Step(id: "quit", action: .terminate),
+                    Step(id: "quit", action: .terminate, level: .happyPath),
                  ])
         }
         // 1) Without --update-snapshots: a missing reference is a FAILURE.
@@ -250,28 +250,28 @@ import AutopilotCore
         // keyPress (cmd+a select-all is harmless), setValue, and a spread of
         // assert operators/properties (matches, notEquals, enabled, title).
         let plan = Plan(
-            schemaVersion: "1.0", name: "host: action+assert coverage",
+            schemaVersion: "1.1", name: "host: action+assert coverage",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                Step(id: "wait-window", action: .waitFor, level: .happyPath, target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
                 // setValue writes the field's AX value directly.
-                Step(id: "setval", action: .setValue, target: Selector(identifier: "nameField"),
+                Step(id: "setval", action: .setValue, level: .happyPath, target: Selector(identifier: "nameField"),
                      args: { var a = ActionArgs(); a.text = "Zed-42"; return a }()),
-                Step(id: "matches", action: .assert, target: Selector(identifier: "nameField"),
+                Step(id: "matches", action: .assert, level: .happyPath, target: Selector(identifier: "nameField"),
                      assert: Assertion(property: .value, op: .matches, expected: #"Zed-\d+"#)),
-                Step(id: "notEquals", action: .assert, target: Selector(identifier: "nameField"),
+                Step(id: "notEquals", action: .assert, level: .happyPath, target: Selector(identifier: "nameField"),
                      assert: Assertion(property: .value, op: .notEquals, expected: "other")),
                 // okButton title is "OK" and it's enabled.
-                Step(id: "title", action: .assert, target: Selector(identifier: "okButton"),
+                Step(id: "title", action: .assert, level: .happyPath, target: Selector(identifier: "okButton"),
                      assert: Assertion(property: .title, op: .equals, expected: "OK")),
-                Step(id: "enabled", action: .assert, target: Selector(identifier: "okButton"),
+                Step(id: "enabled", action: .assert, level: .happyPath, target: Selector(identifier: "okButton"),
                      assert: Assertion(property: .enabled, op: .equals, expected: "true")),
                 // keyPress to the field (cmd+a select-all — no destructive effect).
-                Step(id: "keypress", action: .keyPress, target: Selector(identifier: "nameField"),
+                Step(id: "keypress", action: .keyPress, level: .happyPath, target: Selector(identifier: "nameField"),
                      args: { var a = ActionArgs(); a.keys = "cmd+a"; return a }()),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
@@ -289,16 +289,16 @@ import AutopilotCore
         // TestHostApp's window has several AXButtons — count must be > 1, which a
         // single-match assert could never express (it would throw 'ambiguous').
         let plan = Plan(
-            schemaVersion: "1.0", name: "host: count assertion",
+            schemaVersion: "1.1", name: "host: count assertion",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                Step(id: "wait-window", action: .waitFor, level: .happyPath, target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
-                Step(id: "count-buttons", action: .assert,
+                Step(id: "count-buttons", action: .assert, level: .happyPath,
                      target: Selector(role: "AXButton", within: Selector(role: "AXWindow")),
                      assert: Assertion(property: .count, op: .greaterThan, expected: "1")),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
@@ -318,18 +318,18 @@ import AutopilotCore
         // `within` (before the fix it walked the whole app and would FAIL).
         let withinMenuBar = Selector(identifier: "okButton", within: Selector(role: "AXMenuBar"))
         let plan = Plan(
-            schemaVersion: "1.0", name: "host: within scope",
+            schemaVersion: "1.1", name: "host: within scope",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor, target: Selector(role: "AXWindow"),
+                Step(id: "wait-window", action: .waitFor, level: .happyPath, target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
-                Step(id: "ok-not-in-menubar", action: .assert, target: withinMenuBar,
+                Step(id: "ok-not-in-menubar", action: .assert, level: .happyPath, target: withinMenuBar,
                      assert: Assertion(property: .value, op: .notExists)),
                 // Sanity: okButton DOES exist unscoped.
-                Step(id: "ok-exists", action: .assert, target: Selector(identifier: "okButton"),
+                Step(id: "ok-exists", action: .assert, level: .happyPath, target: Selector(identifier: "okButton"),
                      assert: Assertion(property: .value, op: .exists)),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
@@ -349,26 +349,26 @@ import AutopilotCore
         let artifacts = FileManager.default.temporaryDirectory
             .appendingPathComponent("autopilot-cb-\(UUID().uuidString)")
         let plan = Plan(
-            schemaVersion: "1.0",
+            schemaVersion: "1.1",
             name: "host: checkbox numeric value",
             target: TargetApp(path: binary.path),
             defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
             steps: [
-                Step(id: "wait-window", action: .waitFor,
+                Step(id: "wait-window", action: .waitFor, level: .happyPath,
                      target: Selector(role: "AXWindow"),
                      args: { var a = ActionArgs(); a.present = true; return a }()),
                 // A checkbox AXValue is an NSNumber — readable now via valueString.
-                Step(id: "assert-unchecked", action: .assert,
+                Step(id: "assert-unchecked", action: .assert, level: .happyPath,
                      target: Selector(identifier: "flagCheckbox"),
                      assert: Assertion(property: .value, op: .equals, expected: "0")),
                 // Use AX press (robust) rather than a coordinate click on the
                 // small checkbox hit-area.
-                Step(id: "check-it", action: .press,
+                Step(id: "check-it", action: .press, level: .happyPath,
                      target: Selector(identifier: "flagCheckbox")),
-                Step(id: "assert-checked", action: .assert,
+                Step(id: "assert-checked", action: .assert, level: .happyPath,
                      target: Selector(identifier: "flagCheckbox"),
                      assert: Assertion(property: .value, op: .equals, expected: "1")),
-                Step(id: "quit", action: .terminate),
+                Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))

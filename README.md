@@ -72,24 +72,24 @@ Save this plan as `calculator-smoke.json`:
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "name": "calculator-smoke",
   "target": { "bundleId": "com.apple.calculator" },
   "steps": [
-    { "id": "wait-window", "action": "waitFor",
+    { "id": "wait-window", "action": "waitFor", "level": "happyPath",
       "target": { "role": "AXWindow" } },
-    { "id": "press-1",   "action": "click",
+    { "id": "press-1",   "action": "click", "level": "happyPath",
       "target": { "identifier": "One" } },
-    { "id": "press-plus","action": "click",
+    { "id": "press-plus","action": "click", "level": "happyPath",
       "target": { "identifier": "Add" } },
-    { "id": "press-2",   "action": "click",
+    { "id": "press-2",   "action": "click", "level": "happyPath",
       "target": { "identifier": "Two" } },
-    { "id": "press-eq",  "action": "click",
+    { "id": "press-eq",  "action": "click", "level": "happyPath",
       "target": { "identifier": "Equals" } },
-    { "id": "check-result", "action": "assert",
+    { "id": "check-result", "action": "assert", "level": "happyPath",
       "target": { "role": "AXStaticText", "within": { "identifier": "StandardResultView" } },
       "assert": { "property": "value", "op": "equals", "expected": "3" } },
-    { "id": "done", "action": "terminate" }
+    { "id": "done", "action": "terminate", "level": "happyPath" }
   ]
 }
 ```
