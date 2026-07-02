@@ -69,9 +69,10 @@ final class DragSourceView: NSView, NSDraggingSource {
 }
 
 let screen = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-// Source window near screen CENTER (a corner can fall under the Dock/menu bar,
-// so the seed click would miss it).
-let winFrame = NSRect(x: screen.midX - 30, y: screen.midY - 30, width: 60, height: 60)
+// Source window in the upper-left quadrant — on-screen (not under the Dock or
+// menu bar) but AWAY from a typical destination's center, so the source window
+// never occludes the drop point.
+let winFrame = NSRect(x: screen.minX + 120, y: screen.maxY - 200, width: 60, height: 60)
 let window = NSWindow(contentRect: winFrame, styleMask: [.borderless], backing: .buffered, defer: false)
 let src = DragSourceView()
 src.urls = files
