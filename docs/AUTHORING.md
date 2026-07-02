@@ -133,7 +133,7 @@ Each step is one action. Common shape:
 | `keyPress` | **yes** | `keys` | Sends a key chord, e.g. `"cmd+f"`, `"cmd+,"` (see §5). |
 | `setValue` | **yes** (AX element) | `text` | Sets the element's AX value directly (no keystrokes). Does **not** fire the control's action / end-editing — use `type` with `commit` where the *commit* matters. |
 | `scroll` | **yes** | `deltaX`/`deltaY` | Scrolls by the given pixel deltas. |
-| `drag` | **yes** (source) | `to` | Drags from the source element to `to` (a destination selector). File drag-drop (`toFiles`) is **not supported** via synthetic events — use `target.launchFiles` instead. |
+| `drag` | **yes** (source/target) | `to` **or** `toFiles` | With `to`: drags from the source element to `to` (a destination selector). With `toFiles`: performs a **real cross-process file drop** — drags the listed files onto the target element, so the destination app's real drop handlers fire with `public.file-url` + `NSFilenamesPboardType` (single- and multi-file). See §14a. |
 | `waitFor` | **yes** | `present` | Waits until the element appears (`present: true`, default) or disappears (`present: false`). |
 | `screenshot` | optional | `path`, `padding` | Captures to PNG. Three modes — see §12. Requires Screen Recording permission (same as `assertPixel`). |
 | `assert` | **yes** | — (`assert` block) | Checks a property or presence (§4, assertions). |
@@ -851,6 +851,41 @@ screenshot of the target element saved even on a passing step, for visual loggin
 
 `--keep-going` continues past a failing step instead of stopping at the first one;
 the overall result is still the worst step outcome.
+
+---
+
+## 14a. File drag-and-drop (`drag` + `toFiles`)
+
+A `drag` step with a `toFiles` list performs a **real cross-process file drop**:
+AutoPilot drags the listed files onto the `target` element, exactly as a user
+dragging them from Finder would. The destination app's real AppKit drop handlers
+(`draggingEntered:` / `performDragOperation:`) fire with a genuine drag pasteboard
+carrying **both** `public.file-url` and the legacy `NSFilenamesPboardType` — so a
+drop target that registered *either* type receives the files, and **multi-file**
+drops deliver every path (not just the first).
+
+```json
+{ "id": "drop-two-files", "action": "drag", "level": "happyPath",
+  "target": { "identifier": "EditorTextView" },
+  "args": { "toFiles": ["fixtures/a.txt", "fixtures/b.txt"] } }
+```
+
+The `target` is the element the files are dropped **onto** (its center is the drop
+point). List one path for a single-file drop, several for a multi-file drop.
+
+**How it works / requirements.** AutoPilot itself becomes the drag *source* via a
+real `NSDraggingSession` (you can't make Finder a source with synthetic events — no
+tool can). Originating a drag needs a foreground GUI app, so the macOS backend
+launches a small bundled helper, **`AutopilotDragSource.app`**, shipped next to the
+`autopilot` binary. Because of this:
+
+- Needs **Accessibility** permission (like all input) **and a real display** — a
+  file drop cannot be performed headless.
+- The helper is located next to `autopilot` automatically; override its path with
+  the `AUTOPILOT_DRAG_SOURCE` environment variable if needed.
+- This is a *drop onto a control*, not "open these files" — to just open files at
+  launch, prefer `target.launchFiles`. Use `toFiles` when you specifically need to
+  exercise the app's **drag-and-drop** path.
 
 ---
 
