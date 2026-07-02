@@ -8,9 +8,122 @@ struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "autopilot",
         abstract: "Run a declarative GUI test plan against a macOS app.",
-        subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self, Suggest.self],
+        subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self, Suggest.self, Docs.self],
         defaultSubcommand: Run.self
     )
+}
+
+/// Locates the installed documentation directory. Docs ship next to the binary
+/// so a `brew`-installed AutoPilot carries its own manual, not just the CLI.
+///
+/// Search order (first that exists wins):
+///   1. `$AUTOPILOT_DOCS` (explicit override — tests, unusual layouts).
+///   2. `<bin>/../share/doc/autopilot` — the Homebrew `doc.install` location
+///      (`/opt/homebrew/Cellar/autopilot/<v>/share/doc/autopilot`, with `bin`
+///      the Cellar's `bin`). This is where a `brew` install puts them.
+///   3. `<bin>/../docs` and `<bin>/docs` — a plain tarball / dev layout.
+///   4. The source-tree `docs/` walked up from `<bin>` (`swift run` from a
+///      checkout, where the binary sits in `.build/…`).
+enum DocsLocator {
+    /// Candidate directories, in priority order, for the given running-binary
+    /// path and environment. Pure/injected so it is testable without touching
+    /// the real process. Does NOT check the filesystem — the caller picks the
+    /// first that exists (or the first, as a best-effort message target).
+    static func candidates(binaryURL: URL, env: [String: String]) -> [URL] {
+        var dirs: [URL] = []
+        if let override = env["AUTOPILOT_DOCS"], !override.isEmpty {
+            dirs.append(URL(fileURLWithPath: override))
+        }
+        let bin = binaryURL.resolvingSymlinksInPath()
+        let binDir = bin.deletingLastPathComponent()          // …/bin
+        let prefix = binDir.deletingLastPathComponent()       // …/<cellar version>
+        dirs.append(prefix.appendingPathComponent("share/doc/autopilot"))
+        dirs.append(prefix.appendingPathComponent("docs"))
+        dirs.append(binDir.appendingPathComponent("docs"))
+        // Walk up from the binary looking for a source-tree docs/ (dev builds
+        // live at <root>/.build/<triple>/<config>/autopilot).
+        var up = binDir
+        for _ in 0..<6 {
+            up = up.deletingLastPathComponent()
+            dirs.append(up.appendingPathComponent("docs"))
+        }
+        return dirs
+    }
+
+    /// The resolved docs directory (first candidate that exists), or nil.
+    static func resolve(fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> URL? {
+        let bin = FileDragSource.runningBinaryURL()
+        for dir in candidates(binaryURL: bin, env: ProcessInfo.processInfo.environment) {
+            if fileExists(dir.path) { return dir }
+        }
+        return nil
+    }
+}
+
+/// The documents AutoPilot ships, in menu order. `key` is what the user types
+/// (`autopilot docs manual`); `file` is the on-disk name in the docs dir.
+private let shippedDocs: [(key: String, file: String, blurb: String)] = [
+    ("manual",    "MANUAL.md",    "Full user manual — actions, selectors, running plans"),
+    ("authoring", "AUTHORING.md", "How to write a test plan (selectors, steps, assertions)"),
+    ("readme",    "README.md",    "Overview and quick start"),
+    ("roadmap",   "ROADMAP.md",   "Planned features and direction"),
+    ("ci",        "CI.md",        "CI & distribution notes"),
+]
+
+struct Docs: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "docs",
+        abstract: "Print AutoPilot's bundled documentation (manual, authoring guide, …).")
+
+    @Argument(help: "Which doc to print (manual, authoring, readme, roadmap, ci). Omit to list.")
+    var name: String?
+
+    @Flag(name: .long, help: "Open the doc in your default handler instead of printing it.")
+    var open: Bool = false
+
+    func run() throws {
+        guard let dir = DocsLocator.resolve() else {
+            let msg = "No documentation found. Docs ship alongside the binary (share/doc/autopilot); "
+                + "for a Homebrew install see `brew --prefix autopilot`. "
+                + "Set AUTOPILOT_DOCS to a docs directory to override.\n"
+            FileHandle.standardError.write(Data(msg.utf8))
+            throw ExitCode(2)
+        }
+
+        guard let name else {
+            print("AutoPilot documentation (in \(dir.path)):\n")
+            for d in shippedDocs where FileManager.default.fileExists(atPath: dir.appendingPathComponent(d.file).path) {
+                print("  \(d.key.padding(toLength: 10, withPad: " ", startingAt: 0)) \(d.blurb)")
+            }
+            print("\nRun `autopilot docs <name>` to print one, or add --open to open it.")
+            return
+        }
+
+        let key = name.lowercased()
+        guard let entry = shippedDocs.first(where: { $0.key == key }) else {
+            FileHandle.standardError.write(Data(
+                "Unknown doc \"\(name)\". Known: \(shippedDocs.map(\.key).joined(separator: ", ")).\n".utf8))
+            throw ExitCode(2)
+        }
+        let file = dir.appendingPathComponent(entry.file)
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            FileHandle.standardError.write(Data(
+                "\(entry.file) is not installed at \(dir.path).\n".utf8))
+            throw ExitCode(2)
+        }
+
+        if open {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            p.arguments = [file.path]
+            try p.run(); p.waitUntilExit()
+            if p.terminationStatus != 0 { throw ExitCode(p.terminationStatus) }
+            return
+        }
+
+        let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        FileHandle.standardOutput.write(Data(text.utf8))
+    }
 }
 
 /// Shared helper for inspection commands (dump-axtree/find/suggest): ATTACH to a

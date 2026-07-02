@@ -33,6 +33,17 @@ rm -rf "$DIST"; mkdir -p "$DIST"
 cp "$AUTOPILOT" "$DIST/autopilot"
 cp "$MCP"        "$DIST/AutopilotMCP"
 
+# Ship the user-facing documentation alongside the binaries so a `brew`-installed
+# AutoPilot carries its own manual (the formula's doc.install places these; the
+# `autopilot docs` command finds them next to the binary). Only user-facing docs
+# ship — internal/historical notes (gap analyses, review findings) stay in git.
+DOCS_STAGE="$DIST/docs"
+mkdir -p "$DOCS_STAGE"
+for d in README.md docs/MANUAL.md docs/AUTHORING.md docs/ROADMAP.md docs/CI.md; do
+  [ -f "$d" ] || { echo "ERROR: expected doc not found: $d" >&2; exit 1; }
+  cp "$d" "$DOCS_STAGE/"
+done
+
 # The drag-source helper must ship as a proper .app so it launches as a real
 # foreground GUI app (only a foreground app can originate a cross-process drag).
 # FileDragSource locates it as AutopilotDragSource.app next to the autopilot binary.
@@ -58,7 +69,7 @@ codesign --force --sign - "$DRAG_APP"
 
 TARBALL="${DIST}/autopilot-${VERSION}-${ARCH}.tar.gz"
 echo "==> Packaging → ${TARBALL}"
-tar -czf "$TARBALL" -C "$DIST" autopilot AutopilotMCP AutopilotDragSource.app
+tar -czf "$TARBALL" -C "$DIST" autopilot AutopilotMCP AutopilotDragSource.app docs
 
 SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
 echo "==> SHA-256: ${SHA}"

@@ -77,7 +77,11 @@ public enum FileDragSource {
     /// resolved from the live process (its `argv[0]`, `$PATH`, and the real
     /// filesystem). The resolution rule itself lives in the testable
     /// `resolveBinaryURL(argv0:path:isExecutable:)` below.
-    private static func runningBinaryURL() -> URL {
+    ///
+    /// Public so callers that need the install location for reasons other than
+    /// the drag helper (e.g. finding sibling `share/doc` in a Homebrew Cellar)
+    /// can reuse the same battle-tested resolution instead of reinventing it.
+    public static func runningBinaryURL() -> URL {
         let fm = FileManager.default
         return resolveBinaryURL(
             argv0: CommandLine.arguments.first ?? "/usr/local/bin/autopilot",
@@ -101,9 +105,9 @@ public enum FileDragSource {
     ///
     /// Pure and dependency-injected (`path` + `isExecutable`) so it is testable
     /// without depending on the test process's own argv/cwd/PATH.
-    static func resolveBinaryURL(argv0: String,
-                                 path: String,
-                                 isExecutable: (String) -> Bool) -> URL {
+    public static func resolveBinaryURL(argv0: String,
+                                        path: String,
+                                        isExecutable: (String) -> Bool) -> URL {
         if argv0.contains("/") {
             return URL(fileURLWithPath: argv0)
         }
