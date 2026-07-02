@@ -144,4 +144,85 @@ import AutopilotCore
             try FileDragSource.drop(files: ["/no/such/file/at/all.txt"], at: CGPoint(x: 0, y: 0))
         }
     }
+
+    // MARK: - binary-path resolution (helper discovery)
+
+    /// A bare `argv[0]` (shell `$PATH` launch, e.g. Homebrew's `autopilot`
+    /// symlink) must be resolved through `$PATH` — NOT against the cwd — so the
+    /// sibling `AutopilotDragSource.app` in the real install dir is found. This
+    /// is the regression that forced the `AUTOPILOT_DRAG_SOURCE` workaround.
+    @Test func bareArgv0ResolvesThroughPath() {
+        let url = FileDragSource.resolveBinaryURL(
+            argv0: "autopilot",
+            path: "/usr/bin:/opt/homebrew/bin:/usr/local/bin",
+            isExecutable: { $0 == "/opt/homebrew/bin/autopilot" }
+        )
+        #expect(url.path == "/opt/homebrew/bin/autopilot")
+    }
+
+    /// Once resolved through `$PATH`, a Homebrew-style symlink must resolve to
+    /// its Cellar target so the helper is looked for next to the REAL binary.
+    @Test func bareArgv0ThenSymlinkResolvesToRealDir() throws {
+        // Build a temp Homebrew-shaped layout: bin/autopilot -> Cellar/.../autopilot
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fds-path-\(UUID().uuidString)")
+        let binDir = root.appendingPathComponent("bin")
+        let cellarBin = root.appendingPathComponent("Cellar/autopilot/9.9.9/bin")
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: cellarBin, withIntermediateDirectories: true)
+        let realBinary = cellarBin.appendingPathComponent("autopilot")
+        try "#!/bin/sh\n".write(to: realBinary, atomically: true, encoding: .utf8)
+        // The `$PATH` walk only accepts EXECUTABLE files, so mark it 0755.
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: realBinary.path)
+        let symlink = binDir.appendingPathComponent("autopilot")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: realBinary)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let resolvedDir = FileDragSource.resolveBinaryURL(
+            argv0: "autopilot",
+            path: binDir.path,
+            isExecutable: { FileManager.default.isExecutableFile(atPath: $0) }
+        )
+        .resolvingSymlinksInPath()
+        .deletingLastPathComponent()
+
+        // The sibling-helper search must now target the Cellar dir, not bin/.
+        #expect(resolvedDir.path == cellarBin.resolvingSymlinksInPath().path)
+    }
+
+    /// An absolute `argv[0]` is used verbatim (no `$PATH` walk) — the
+    /// full-path invocation case, which already worked.
+    @Test func absoluteArgv0UsedVerbatim() {
+        let url = FileDragSource.resolveBinaryURL(
+            argv0: "/opt/homebrew/bin/autopilot",
+            path: "/should/not/be/consulted",
+            isExecutable: { _ in Issue.record("PATH must not be walked for an absolute argv0"); return false }
+        )
+        #expect(url.path == "/opt/homebrew/bin/autopilot")
+    }
+
+    /// A relative-with-directory `argv[0]` (`./autopilot`) also bypasses the
+    /// `$PATH` walk — it already carries a directory component.
+    @Test func relativeWithDirArgv0BypassesPathWalk() {
+        let url = FileDragSource.resolveBinaryURL(
+            argv0: "./build/autopilot",
+            path: "/should/not/be/consulted",
+            isExecutable: { _ in Issue.record("PATH must not be walked for a dir-bearing argv0"); return false }
+        )
+        #expect(url.path.hasSuffix("build/autopilot"))
+    }
+
+    /// If a bare name is not found on `$PATH`, fall back to the raw `argv[0]`
+    /// (prior behavior) rather than returning nil — never worse than before.
+    /// The fallback is `URL(fileURLWithPath: "autopilot")`, which Foundation
+    /// normalizes against the cwd (so `.path` is `<cwd>/autopilot`) — exactly
+    /// the pre-fix behavior we are preserving, not regressing.
+    @Test func bareArgv0FallsBackWhenNotOnPath() {
+        let url = FileDragSource.resolveBinaryURL(
+            argv0: "autopilot",
+            path: "/usr/bin:/opt/homebrew/bin",
+            isExecutable: { _ in false }   // present nowhere
+        )
+        #expect(url.path == URL(fileURLWithPath: "autopilot").path)
+    }
 }

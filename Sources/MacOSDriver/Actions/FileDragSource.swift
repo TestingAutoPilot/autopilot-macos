@@ -59,7 +59,7 @@ public enum FileDragSource {
            fm.isExecutableFile(atPath: override) {
             return URL(fileURLWithPath: override)
         }
-        let binDir = URL(fileURLWithPath: CommandLine.arguments.first ?? "/usr/local/bin/autopilot")
+        let binDir = runningBinaryURL()
             .resolvingSymlinksInPath()
             .deletingLastPathComponent()
 
@@ -71,6 +71,48 @@ public enum FileDragSource {
         if fm.isExecutableFile(atPath: bare.path) { return bare }
 
         return nil
+    }
+
+    /// The on-disk path of the running `autopilot` binary, as a file URL —
+    /// resolved from the live process (its `argv[0]`, `$PATH`, and the real
+    /// filesystem). The resolution rule itself lives in the testable
+    /// `resolveBinaryURL(argv0:path:isExecutable:)` below.
+    private static func runningBinaryURL() -> URL {
+        let fm = FileManager.default
+        return resolveBinaryURL(
+            argv0: CommandLine.arguments.first ?? "/usr/local/bin/autopilot",
+            path: ProcessInfo.processInfo.environment["PATH"] ?? "",
+            isExecutable: { fm.isExecutableFile(atPath: $0) }
+        )
+    }
+
+    /// Resolve `argv0` to the binary's on-disk path.
+    ///
+    /// `argv[0]` is whatever the launcher passed. When it contains a path
+    /// separator (absolute, or relative-with-directory) it points at the binary
+    /// directly, so we use it as-is. But a shell that finds `autopilot` on
+    /// `$PATH` passes a BARE program name (`"autopilot"`, no directory) — and
+    /// `URL(fileURLWithPath:).resolvingSymlinksInPath()` would then resolve it
+    /// against the CURRENT WORKING DIRECTORY, not `$PATH`, yielding
+    /// `<cwd>/autopilot` and losing the real install location (so the sibling
+    /// helper is never found — the Homebrew symlink case). To match how the
+    /// shell actually located us, walk `$PATH` for the first executable of that
+    /// name. Falls back to the raw `argv0` if nothing matches.
+    ///
+    /// Pure and dependency-injected (`path` + `isExecutable`) so it is testable
+    /// without depending on the test process's own argv/cwd/PATH.
+    static func resolveBinaryURL(argv0: String,
+                                 path: String,
+                                 isExecutable: (String) -> Bool) -> URL {
+        if argv0.contains("/") {
+            return URL(fileURLWithPath: argv0)
+        }
+        for dir in path.split(separator: ":", omittingEmptySubsequences: true) {
+            let candidate = URL(fileURLWithPath: String(dir))
+                .appendingPathComponent(argv0)
+            if isExecutable(candidate.path) { return candidate }
+        }
+        return URL(fileURLWithPath: argv0)
     }
 }
 
