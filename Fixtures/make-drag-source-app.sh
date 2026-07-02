@@ -3,22 +3,36 @@
 # so it launches as a real foreground GUI app (a bare Mach-O does not — and only
 # a foreground app can originate a cross-process file drag).
 #
-# Output: <package .build>/AutopilotDragSource.app
+# The helper must sit NEXT TO the autopilot binary it will be driven by, because
+# FileDragSource locates it as AutopilotDragSource.app alongside the CLI. So this
+# builds it into the matching build-config dir.
 #
-# The macOS backend (FileDragSource) launches this helper to perform a real
-# cross-process file drop. Tests point AUTOPILOT_DRAG_SOURCE at the built binary.
+# Usage: make-drag-source-app.sh [debug|release|both]   (default: both)
+#   Builds the helper .app into each requested config's bin dir, so the plan
+#   works whether it's driven by the debug OR the release autopilot binary.
+#
+# Output: <package .build>/<config>/AutopilotDragSource.app  (prints each path)
 set -euo pipefail
 cd "$(dirname "$0")/.."   # package root
 
-swift build --product AutopilotDragSource
-BINDIR="$(swift build --show-bin-path)"
-BIN="$BINDIR/AutopilotDragSource"
-APP="$BINDIR/AutopilotDragSource.app"
+CONFIGS="${1:-both}"
+case "$CONFIGS" in
+  debug)   CONFIGS="debug" ;;
+  release) CONFIGS="release" ;;
+  both)    CONFIGS="debug release" ;;
+  *) echo "usage: $0 [debug|release|both]" >&2; exit 2 ;;
+esac
 
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
-cp "$BIN" "$APP/Contents/MacOS/AutopilotDragSource"
-cat > "$APP/Contents/Info.plist" <<'PL'
+bundle_into() {
+  local flags="$1"          # "" for debug, "-c release" for release
+  swift build $flags --product AutopilotDragSource
+  local bindir; bindir="$(swift build $flags --show-bin-path)"
+  local app="$bindir/AutopilotDragSource.app"
+
+  rm -rf "$app"
+  mkdir -p "$app/Contents/MacOS"
+  cp "$bindir/AutopilotDragSource" "$app/Contents/MacOS/AutopilotDragSource"
+  cat > "$app/Contents/Info.plist" <<'PL'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -29,8 +43,11 @@ cat > "$APP/Contents/Info.plist" <<'PL'
 <key>LSUIElement</key><true/>
 </dict></plist>
 PL
+  # Ad-hoc codesign so TCC/AX treats it as a stable identity.
+  codesign --force --sign - "$app" >/dev/null 2>&1 || true
+  echo "$app"
+}
 
-# Ad-hoc codesign so TCC/AX treats it as a stable identity.
-codesign --force --sign - "$APP" >/dev/null 2>&1 || true
-
-echo "$APP"
+for cfg in $CONFIGS; do
+  if [ "$cfg" = "release" ]; then bundle_into "-c release"; else bundle_into ""; fi
+done
