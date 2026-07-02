@@ -8,10 +8,11 @@ let package = Package(
         .library(name: "MacOSDriver", targets: ["MacOSDriver"]),
         .executable(name: "autopilot", targets: ["autopilot"]),
         .executable(name: "AutopilotMCP", targets: ["AutopilotMCP"]),
+        .executable(name: "AutopilotDragSource", targets: ["AutopilotDragSource"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
-        .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.0.0"),
+        .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.1.0"),
     ],
     targets: [
         .target(
@@ -28,6 +29,10 @@ let package = Package(
                 .product(name: "AutopilotCore", package: "autopilot-core"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "AutopilotDragSource",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .target(
