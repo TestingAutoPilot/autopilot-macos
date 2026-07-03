@@ -9,6 +9,7 @@ let package = Package(
         .executable(name: "autopilot", targets: ["autopilot"]),
         .executable(name: "AutopilotMCP", targets: ["AutopilotMCP"]),
         .executable(name: "AutopilotDragSource", targets: ["AutopilotDragSource"]),
+        .executable(name: "AutopilotCockpit", targets: ["AutopilotCockpit"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
@@ -48,6 +49,14 @@ let package = Package(
             dependencies: ["AutopilotMCPKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        .executableTarget(
+            name: "AutopilotCockpit",
+            dependencies: [
+                "MacOSDriver",
+                .product(name: "AutopilotCore", package: "autopilot-core"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .testTarget(
             name: "AutopilotCoreTests",
             dependencies: [
@@ -59,6 +68,11 @@ let package = Package(
         .testTarget(
             name: "AutopilotMCPKitTests",
             dependencies: ["AutopilotMCPKit"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "AutopilotCockpitTests",
+            dependencies: ["AutopilotCockpit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
