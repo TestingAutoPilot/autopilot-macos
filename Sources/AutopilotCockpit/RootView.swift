@@ -22,7 +22,7 @@ struct RootView: View {
             switch mode {
             case .inspect: InspectView(engine: engine)
             case .author:  Text("Author — coming in Task 9").frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .run:     Text("Run — coming in Task 6").frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .run:     RunView(engine: engine)
             }
         }
         .onAppear { engine.checkAccessibility() }

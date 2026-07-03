@@ -13,7 +13,11 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
-        .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.1.0"),
+        // TEMPORARY local override so the cockpit can build against the unreleased
+        // RunObserver (autopilot-core feature/run-observer branch). MUST be reverted
+        // to the git dependency below before any release (see docs/plans Task 10).
+        .package(path: "../autopilot-core"),
+        // .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.1.0"),
     ],
     targets: [
         .target(
