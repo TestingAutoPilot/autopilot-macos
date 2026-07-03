@@ -11,6 +11,10 @@ struct AXNode: Identifiable, Equatable {
         self.id = index; self.attrs = attrs; self.children = children
     }
 
+    /// OutlineGroup's `children:` needs an OPTIONAL key path so leaves (nil) render
+    /// without a disclosure triangle. `children` itself stays non-optional.
+    var childrenOrNil: [AXNode]? { children.isEmpty ? nil : children }
+
     var role: String { attrs["role"] ?? "AXUnknown" }
     var identifier: String? { attrs["identifier"]?.nilIfEmpty }
     var title: String? { attrs["title"]?.nilIfEmpty }
