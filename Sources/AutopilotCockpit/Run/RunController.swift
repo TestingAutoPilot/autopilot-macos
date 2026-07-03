@@ -60,12 +60,15 @@ final class RunController: RunObserver {
                                  planBaseDir: loaded.baseDir, maxLevel: maxLevel,
                                  observer: self)
         let plan = loaded.plan
-        // PlanRunner.run is blocking; run it off the main actor.
-        Task.detached { [weak self] in
+        // PlanRunner.run is blocking; run it off the main actor. Bind self to a
+        // local so the detached closure captures an immutable reference (Swift 6
+        // rejects capturing the mutable `self` var across the concurrency boundary).
+        let controller = self
+        Task.detached {
             do {
                 _ = try PlanRunner(driver: driver).run(plan, options: options)
             } catch {
-                await MainActor.run { self?.finishWithError("\(error)") }
+                await controller.finishWithError("\(error)")
             }
         }
     }

@@ -62,14 +62,36 @@ cat > "$DRAG_APP/Contents/Info.plist" <<'PL'
 </dict></plist>
 PL
 
+# The cockpit GUI ships as a proper .app so macOS can grant it Accessibility
+# permission by its bundle identity (a bare Mach-O can't hold that grant).
+COCKPIT_BIN="${BIN_PATH}/AutopilotCockpit"
+[ -x "$COCKPIT_BIN" ] || { echo "ERROR: expected binary not found: $COCKPIT_BIN" >&2; exit 1; }
+COCKPIT_APP="$DIST/AutopilotCockpit.app"
+mkdir -p "$COCKPIT_APP/Contents/MacOS"
+cp "$COCKPIT_BIN" "$COCKPIT_APP/Contents/MacOS/AutopilotCockpit"
+cat > "$COCKPIT_APP/Contents/Info.plist" <<PL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>AutopilotCockpit</string>
+<key>CFBundleIdentifier</key><string>com.autopilot.cockpit</string>
+<key>CFBundleName</key><string>AutoPilot Cockpit</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>${VERSION}</string>
+<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSHighResolutionCapable</key><true/>
+</dict></plist>
+PL
+
 echo "==> Signing (ad-hoc)…"
 codesign --force --sign - "$DIST/autopilot"
 codesign --force --sign - "$DIST/AutopilotMCP"
 codesign --force --sign - "$DRAG_APP"
+codesign --force --sign - "$COCKPIT_APP"
 
 TARBALL="${DIST}/autopilot-${VERSION}-${ARCH}.tar.gz"
 echo "==> Packaging → ${TARBALL}"
-tar -czf "$TARBALL" -C "$DIST" autopilot AutopilotMCP AutopilotDragSource.app docs
+tar -czf "$TARBALL" -C "$DIST" autopilot AutopilotMCP AutopilotDragSource.app AutopilotCockpit.app docs
 
 SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
 echo "==> SHA-256: ${SHA}"
