@@ -72,27 +72,21 @@ struct ElementDetail: View {
                 if let f = node.frame {
                     LabeledContent("Frame", value: "\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))×\(Int(f.height))")
                 }
-                Button("Copy selector") { copySelector(for: node) }
+                HStack {
+                    Button("Copy selector") { copySelector(for: node) }
+                    Button("Use as selector →") { engine.pendingSelector = engine.selector(for: node) }
+                        .help("Send this selector to Author to fill a step's target")
+                }
             }.formStyle(.grouped)
         } else {
             ContentUnavailableView("No element selected", systemImage: "square.dashed")
         }
     }
 
-    /// Prefer the suggester's selector for this node's identifier; else identifier;
-    /// else role. Writes the JSON of the selector to the pasteboard.
+    /// Copy the node's preferred selector (see CockpitEngine.selector(for:)) to
+    /// the pasteboard as JSON.
     private func copySelector(for node: AXNode) {
-        let selector: AutopilotCore.Selector
-        if let id = node.identifier,
-           let s = engine.suggestions.first(where: { $0.selector.identifier == id }) {
-            selector = s.selector
-        } else if let id = node.identifier {
-            selector = AutopilotCore.Selector(identifier: id)
-        } else if let t = node.title {
-            selector = AutopilotCore.Selector(role: node.role, title: t)
-        } else {
-            selector = AutopilotCore.Selector(role: node.role)
-        }
+        let selector = engine.selector(for: node)
         let enc = JSONEncoder(); enc.outputFormatting = [.sortedKeys, .prettyPrinted]
         if let data = try? enc.encode(selector), let json = String(data: data, encoding: .utf8) {
             NSPasteboard.general.clearContents()

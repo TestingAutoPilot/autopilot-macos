@@ -21,7 +21,7 @@ struct RootView: View {
 
             switch mode {
             case .inspect: InspectView(engine: engine)
-            case .author:  Text("Author — coming in Task 9").frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .author:  AuthorView(engine: engine)
             case .run:     RunView(engine: engine)
             }
         }

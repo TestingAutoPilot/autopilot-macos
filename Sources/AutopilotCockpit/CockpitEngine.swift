@@ -18,8 +18,23 @@ final class CockpitEngine {
     private(set) var lastError: String?
     var hasAccessibility: Bool = true
 
+    /// A selector chosen in Inspect, waiting to be applied to a step in Author.
+    var pendingSelector: AutopilotCore.Selector?
+
     init(driver: any AppDriver = MacOSDriver()) {
         self.driver = driver
+    }
+
+    /// The preferred selector for a node: stable identifier > role+title > role.
+    /// Shared by Inspect's "Copy selector" and "Use as selector" so both agree.
+    func selector(for node: AXNode) -> AutopilotCore.Selector {
+        if let id = node.identifier,
+           let s = suggestions.first(where: { $0.selector.identifier == id }) {
+            return s.selector
+        }
+        if let id = node.identifier { return AutopilotCore.Selector(identifier: id) }
+        if let t = node.title { return AutopilotCore.Selector(role: node.role, title: t) }
+        return AutopilotCore.Selector(role: node.role)
     }
 
     func checkAccessibility() {
