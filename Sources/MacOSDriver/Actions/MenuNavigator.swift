@@ -1,5 +1,6 @@
 import Foundation
 import ApplicationServices
+import AutopilotCore
 
 /// Drives the menu bar by title path, e.g. ["View", "Rainbow Brackets"].
 /// This is how menu commands without a key equivalent are invoked — a plain
@@ -50,6 +51,47 @@ public struct MenuNavigator {
                 AXTree.press(item)            // open the submenu
                 current = item
             }
+        }
+    }
+
+    /// List every item of the menu reached by `path` — INCLUDING disabled items —
+    /// as neutral `MenuItemInfo`. `path` names the containing menu (e.g. ["View"]
+    /// lists the View menu's items; ["Edit","Text"] lists the Text submenu's).
+    /// An empty `path` lists the top-level menu-bar titles.
+    ///
+    /// Why: `selectPath` can only invoke an ENABLED item, and disabled items (a
+    /// command needing a specific first-responder) don't appear in any discovery
+    /// output. This lets an author see the whole menu and each item's enabled/mark
+    /// state without invoking anything.
+    public func listItems(path: [String], app: AXUIElement) throws -> [MenuItemInfo] {
+        var menuBarRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &menuBarRef) == .success,
+              let menuBar = menuBarRef else { throw MenuError.noMenuBar }
+        // swiftlint:disable:next force_cast
+        var current = menuBar as! AXUIElement
+
+        // Descend to the menu named by `path`; the items we list are that menu's
+        // children. For an empty path, the menu bar's own items are the top titles.
+        for title in path {
+            let candidates = childMenuItems(of: current)
+            let titles = candidates.map { AXTree.string($0, kAXTitleAttribute as String) }
+            guard let idx = Self.indexOfTitle(title, in: titles) else {
+                throw MenuError.itemNotFound(title: title, available: titles.compactMap { $0 })
+            }
+            current = candidates[idx]
+        }
+
+        return childMenuItems(of: current).map { item in
+            let title = AXTree.string(item, kAXTitleAttribute as String) ?? ""
+            let enabled = AXTree.bool(item, kAXEnabledAttribute as String) ?? true
+            // An item with a non-empty AXMenu child opens a submenu.
+            let hasSubmenu = AXTree.children(item).contains {
+                AXTree.string($0, kAXRoleAttribute as String) == (kAXMenuRole as String)
+            }
+            // AXMenuItemMarkChar is the checkmark glyph when marked; empty/absent otherwise.
+            let mark = AXTree.string(item, kAXMenuItemMarkCharAttribute as String)
+            let markChar = (mark?.isEmpty == false) ? mark : nil
+            return MenuItemInfo(title: title, enabled: enabled, hasSubmenu: hasSubmenu, markChar: markChar)
         }
     }
 

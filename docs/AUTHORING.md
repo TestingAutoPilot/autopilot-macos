@@ -351,11 +351,23 @@ An `assert` step carries an `assert` block instead of (or alongside) plain args:
 
 **Properties** (`assert.property`): `value`, `title`, `enabled`, `focused`,
 `position`, `size`, `marked` (menu-item checkmark — `"true"`/`"false"` from
-`AXMenuItemMarkChar`), and `count` (the **number of elements** matching the
+`AXMenuItemMarkChar`), `count` (the **number of elements** matching the
 selector — for collections; use with `equals`/`greaterThan`/`lessThan`, e.g.
-`{ "property": "count", "op": "greaterThan", "expected": "1" }`). Presence is
-checked with the `exists`/`notExists` **ops** (any property), not an `exists`
-property.
+`{ "property": "count", "op": "greaterThan", "expected": "1" }`), and `clipboard`
+(the **system pasteboard's text** — see below). Presence is checked with the
+`exists`/`notExists` **ops** (any property), not an `exists` property.
+
+**`clipboard` — asserting the system pasteboard.** A `clipboard` assert reads the
+current pasteboard string and compares it; it is **target-less** (omit `target`).
+Use it to verify a copy landed, or that copying nothing left the clipboard alone:
+
+```json
+{ "id": "copy-worked", "action": "assert", "level": "happyPath",
+  "assert": { "property": "clipboard", "op": "equals", "expected": "hello" } }
+```
+
+It polls like any value assert (a copy may land a beat after the action). An empty
+pasteboard reads as the empty string `""`.
 
 **Operators** (`assert.op`):
 
@@ -1075,8 +1087,19 @@ autopilot doctor                       # check Accessibility permission (exit 3 
 autopilot dump-axtree <app> [--pid N] [--interactive-only]   # print the AX tree to discover selectors
 autopilot find <app> --identifier foo  # show what a selector resolves to (and how many)
 autopilot suggest <app>                # suggest the best selector for each interactive element
+autopilot menu <app> [--path View]     # list a menu's items as JSON, INCLUDING disabled ones
 autopilot lint <plan|dir>              # flag non-functional label/path, missing terminate/window-wait
 ```
+
+> **`menu` — discovering menu items (incl. disabled).** The `menu` action can only
+> invoke an **enabled** item; an item disabled at menu-open time (a command needing
+> a specific first-responder) can't be driven, and `dump-axtree` doesn't list menu
+> contents. `autopilot menu <app> --path View` (or `--path Edit Text` for a
+> submenu; omit `--path` for the top-level titles) lists **every** item with its
+> `enabled`, `hasSubmenu`, and `markChar` (the ✓ glyph when checked) — so you can
+> see what a menu holds and which items are currently invokable before writing a
+> `menu` step. It attaches like the other inspection commands (`--pid N` for a
+> specific process).
 
 > **Inspect vs. run — important.** `run` **launches a fresh instance** (a test
 > wants a clean app). The inspection commands (`dump-axtree`, `find`, `suggest`)

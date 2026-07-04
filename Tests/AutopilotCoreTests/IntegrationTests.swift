@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import ApplicationServices
+import AppKit
 import AutopilotCore
 @testable import MacOSDriver
 
@@ -104,6 +105,37 @@ import AutopilotCore
         )
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
         #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    @Test func listMenuReportsEnabledAndDisabledItems() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else {
+            Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
+            return
+        }
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
+
+        let driver = MacOSDriver()
+        let app = try driver.launch(TargetApp(path: binary.path))
+        _ = driver.waitForPresence(Selector(role: "AXWindow"), present: true,
+                                   app: app, timeoutMs: 4000, intervalMs: 100)
+        defer { driver.terminate(app) }
+
+        let items = try driver.listMenu(path: ["View"], app: app)
+        // The View menu lists BOTH an enabled custom item and disabled system items
+        // — the whole point of listMenu vs. the enabled-only selectPath walker.
+        #expect(items.contains { $0.title == "Toggle Flag" && $0.enabled })
+        #expect(items.contains { !$0.enabled }, "expected at least one disabled item to be listed")
+    }
+
+    @Test func readClipboardRoundTrips() async throws {
+        // Clipboard read doesn't need AX permission, but keep it hermetic.
+        let unique = "autopilot-clip-\(UUID().uuidString)"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(unique, forType: .string)
+        #expect(MacOSDriver().readClipboard() == unique)
     }
 
     @Test func typeIntoSearchFieldViaKeycodes() async throws {

@@ -8,7 +8,7 @@ struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "autopilot",
         abstract: "Run a declarative GUI test plan against a macOS app.",
-        subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self, Suggest.self, Docs.self],
+        subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self, Suggest.self, MenuList.self, Docs.self],
         defaultSubcommand: Run.self
     )
 }
@@ -181,6 +181,41 @@ struct Suggest: ParsableCommand {
             let label = s.label.isEmpty ? "" : "  “\(s.label)”"
             print("\(s.role)\(label)\n    \(oneLine)\n    # \(s.note)")
         }
+    }
+}
+
+struct MenuList: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "menu",
+        abstract: "Attach to a RUNNING app and list a menu's items (including disabled ones).")
+
+    @Argument(help: "Bundle id or path to a .app bundle (of the running app).")
+    var app: String?
+
+    @Option(name: .long, help: "Attach to a specific running process by pid (unambiguous).")
+    var pid: Int32?
+
+    @Option(name: .long, parsing: .upToNextOption,
+            help: "Menu title path to list, e.g. --path View  or  --path Edit Text. Empty = top-level menu titles.")
+    var path: [String] = []
+
+    func run() throws {
+        let launched = try Inspect.attach(app: app, pid: pid)   // attach, never launch
+        let appEl = Inspect.appElement(launched)
+        let items = try MenuNavigator().listItems(path: path, app: appEl)
+        let payload: [String: Any] = [
+            "pid": launched.pid,
+            "appName": launched.runningApp.localizedName ?? "",
+            "path": path,
+            "items": items.map { item -> [String: Any] in
+                var d: [String: Any] = ["title": item.title, "enabled": item.enabled, "hasSubmenu": item.hasSubmenu]
+                if let m = item.markChar { d["markChar"] = m }
+                return d
+            },
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        FileHandle.standardOutput.write(data)
+        FileHandle.standardOutput.write(Data("\n".utf8))
     }
 }
 

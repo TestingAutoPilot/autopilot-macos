@@ -28,6 +28,10 @@ public struct MacAssertionReader {
             // `count` is resolved by the runner against the whole subtree, not a
             // single element — readProperty is never called for it.
             return nil
+        case .clipboard:
+            // `clipboard` reads the system pasteboard in the runner (target-less);
+            // readProperty is never called for it.
+            return nil
         }
     }
 }
