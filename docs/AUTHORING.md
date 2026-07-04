@@ -1084,12 +1084,28 @@ Beyond `run`:
 
 ```bash
 autopilot doctor                       # check Accessibility permission (exit 3 if missing)
-autopilot dump-axtree <app> [--pid N] [--interactive-only]   # print the AX tree to discover selectors
+autopilot dump-axtree <app> [--pid N] [--interactive-only] [--under-role AXWindow] [--omit-menubar]
 autopilot find <app> --identifier foo  # show what a selector resolves to (and how many)
 autopilot suggest <app>                # suggest the best selector for each interactive element
 autopilot menu <app> [--path View]     # list a menu's items as JSON, INCLUDING disabled ones
+autopilot dismiss-alert <app> [--button OK]   # press a button in ANOTHER process's alert (see below)
 autopilot lint <plan|dir>              # flag non-functional label/path, missing terminate/window-wait
 ```
+
+> **`dump-axtree` filters.** A real app's tree can be hundreds of nodes. Trim it:
+> `--interactive-only` (buttons/fields/rows), `--under-role AXWindow` (only the
+> first window's subtree — drops the menu bar and other windows), `--omit-menubar`
+> (drop menu-bar/menu nodes). Combine them.
+
+> **`dismiss-alert` — a foreign-process alert.** Some failures raise a modal that a
+> target-attached run **cannot** see, because it's owned by a *different* process —
+> e.g. LaunchServices' "you don't have permission to open …" alert is owned by
+> **`CoreServicesUIAgent`**, not your app. `dismiss-alert` attaches to that owner
+> and presses a button: `autopilot dismiss-alert com.apple.coreservices.uiagent`
+> (or `--pid N`, or `--button "Don't Save"`). With no `--button` it tries
+> OK / Close / Cancel / Don't Save / Dismiss. This is the escape hatch for the
+> otherwise-undismissable cross-process alert; a `run` plan's steps still can't
+> target it, so invoke this out-of-band (e.g. between plans in a suite runner).
 
 > **`menu` — discovering menu items (incl. disabled).** The `menu` action can only
 > invoke an **enabled** item; an item disabled at menu-open time (a command needing

@@ -31,6 +31,15 @@ public enum Screenshot {
     public static func captureElement(_ element: AXUIElement, to path: String,
                                       padding: Double = 0,
                                       metadata: [String: String] = [:]) -> String? {
+        // WKWebView content (an AXWebArea) renders in a separate process whose
+        // layer only composites when the app is frontmost — capturing it while the
+        // app is in the background yields a BLANK frame. Rather than write a blank
+        // PNG that looks valid, fail with a clear, actionable reason.
+        if isWebArea(element), !ownerIsFrontmost(element) {
+            return "web-area (WKWebView) capture requires the app to be frontmost — "
+                 + "it renders blank in the background. Activate the app first "
+                 + "(the runner's launch does this; for `attach` plans bring it to front)."
+        }
         guard var frame = AXTree.frame(element) else {
             return "element has no screen frame (off-screen or window not rendered)"
         }
@@ -45,6 +54,32 @@ public enum Screenshot {
             return "failed to write PNG to \(path)"
         }
         return nil  // success
+    }
+
+    /// Whether an element is (or is inside) a WKWebView web area. A blank
+    /// background capture is the tell-tale of these; we gate on frontmost.
+    static func isWebArea(_ element: AXUIElement) -> Bool {
+        var el: AXUIElement? = element
+        var hops = 0
+        while let cur = el, hops < 6 {   // check the element and a few ancestors
+            if AXTree.string(cur, kAXRoleAttribute as String) == "AXWebArea" { return true }
+            var parentRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(cur, kAXParentAttribute as CFString, &parentRef) == .success,
+               let parent = parentRef {
+                // swiftlint:disable:next force_cast
+                el = (parent as! AXUIElement)
+            } else { el = nil }
+            hops += 1
+        }
+        return false
+    }
+
+    /// Whether the app that owns `element` is the frontmost (active) app.
+    static func ownerIsFrontmost(_ element: AXUIElement) -> Bool {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success,
+              let running = NSRunningApplication(processIdentifier: pid) else { return false }
+        return running.isActive
     }
 
     /// Write a CGImage to a PNG file with optional tEXt metadata chunks embedded.

@@ -84,25 +84,48 @@ indirectly by pasting. Added:
 
 ---
 
-## OPEN — filed, not addressed this pass
+### Second pass — the remaining items, now closed
 
-These are real but were scoped out of this pass (documented so they are not lost):
+- **SC-1 — silent screenshot failure.** The runner already messaged the
+  element-crop and target-didn't-resolve fallbacks; closed the last silent path so
+  a full-display capture failure ALWAYS carries a reason (names Screen Recording
+  when that's the cause). Tests: `ScreenshotMessageTests`.
+- **SC-2 / SC-5 — negative / secondary-display origins.** Already fixed by the
+  ScreenCaptureKit rewrite: `ScreenCapture` picks the display whose frame
+  *intersects* the rect (incl. negative-origin secondaries) and converts to
+  display-local coords. Verified by inspection; no code change needed.
+- **`snapshot` reference-write failure.** Screen Recording is already checked
+  before the write, so a bare "failed to write reference" was misleading — it now
+  reports whether the destination directory is writable vs. the capture returning
+  no image.
+- **WKWebView / web-area capture blank unless frontmost.** `Screenshot.captureElement`
+  now detects an `AXWebArea` (self or ancestor) and, if the owning app isn't
+  frontmost, fails with a clear reason instead of writing a blank PNG. (Verified by
+  inspection — the TestHostApp fixture has no WKWebView.)
+- **`dump-axtree` filtering.** Added `--under-role <role>` (only the first matching
+  element's subtree, by frame containment) and `--omit-menubar` (drop menu-bar/menu
+  nodes). Pure `TreeFilter` + `TreeFilterTests`; verified live (159 → 74 → 72 nodes).
+- **Chord `+`-as-final-key + distinct unsupported-key exit.** `cmd+plus` was already
+  the supported form and `PlanError.unsupportedKey` was already a distinct case; the
+  gap was the CLI collapsing all plan errors to exit 2. `run` now exits **4** for an
+  unsupported key (2 stays for invalid plans). Tests: `CLITests`.
+- **D7 — cross-process system alerts.** Reclassified from "document as out-of-scope"
+  to a real feature: new `autopilot dismiss-alert <app|--pid>` attaches to the
+  alert's OWNING process (e.g. `CoreServicesUIAgent`) and presses a button (OK /
+  Close / Cancel / Don't Save / Dismiss, or `--button`). **Verified live** by
+  dismissing a dialog owned by a separate `System Events` process. A `run` plan's
+  steps still can't target another process's window — invoke this out-of-band
+  (e.g. a suite runner between plans).
 
-- **Screenshot sharp edges** (SC-1..SC-5, medit 2.6.2 / docs round): silent
-  element-screenshot failure with no `message`; frontmost-gating for WKWebView /
-  web-area captures; thin-element crop emptiness; `snapshot` reference-write
-  failure; negative / secondary-display window origins in the capture path. These
-  want a focused pass on `Screenshot`/`ScreenCapture` in `MacOSDriver`.
-- **Cross-process system alerts** (D7 / M2): a modal owned by `CoreServicesUIAgent`
-  (LaunchServices' permission-denied alert) is invisible to a target-attached run
-  and steals focus. Decide: document as out-of-scope with the recommended
-  out-of-band `osascript` cleanup, or add a primitive to observe/dismiss
-  foreign-process alerts. (M1/M2 themselves are medit bugs, not AP's.)
-- **`dump_axtree` filtering** (NICE): "interactive only" / "subtree under role" /
-  "omit menu bar" flags for large trees. (`suggest` already gives interactive
-  elements; a filter flag on the raw dump is the ask.)
-- **Chord `+`-as-final-key** (R Key P2) and **distinct "unsupported key" exit code**
-  vs. a plan-decode error (NICE).
+## OPEN — genuinely not fixable (laws of physics, not defects)
+
+- **Exact screenshot hues / pixel-perfect visual state.** Colors are
+  display/theme/GPU-dependent. AutoPilot already handles this correctly with
+  tolerance-based `assertPixel`/`assertRegion` and `snapshot` diffing with a
+  `maxDiff` — the right tools; there is nothing to "fix." Prefer the app's own
+  snapshot tests for dense pixel-perfect checks.
+
+(M1/M2 in the medit report are medit's own bugs, not AutoPilot's.)
 
 ---
 

@@ -8,7 +8,7 @@ struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "autopilot",
         abstract: "Run a declarative GUI test plan against a macOS app.",
-        subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self, Suggest.self, MenuList.self, Docs.self],
+        subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self, Suggest.self, MenuList.self, DismissAlert.self, Docs.self],
         defaultSubcommand: Run.self
     )
 }
@@ -219,6 +219,44 @@ struct MenuList: ParsableCommand {
     }
 }
 
+struct DismissAlert: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "dismiss-alert",
+        abstract: "Press a button in ANOTHER process's alert/dialog by attaching to its pid — "
+                + "e.g. a LaunchServices permission alert owned by CoreServicesUIAgent, which a "
+                + "target-attached run cannot see.")
+
+    @Argument(help: "Bundle id or path of the alert-owning app (e.g. com.apple.coreservices.uiagent).")
+    var app: String?
+
+    @Option(name: .long, help: "Attach to a specific process by pid (the alert's owner).")
+    var pid: Int32?
+
+    @Option(name: .long, help: "Button title to press. If omitted, tries OK / Close / Cancel / Don't Save.")
+    var button: String?
+
+    func run() throws {
+        let launched = try Inspect.attach(app: app, pid: pid)   // attach to the alert's OWNER
+        let appEl = AXTree.application(pid: launched.pid)
+        let resolver = MacAXResolver()
+        let candidates = button.map { [$0] } ?? ["OK", "Close", "Cancel", "Don’t Save", "Don't Save", "Dismiss"]
+        for title in candidates {
+            let selector = AutopilotCore.Selector(role: "AXButton", title: title)
+            if let el = try? resolver.resolveOne(in: appEl, selector: selector) {
+                if AXTree.press(el) {
+                    print("pressed “\(title)” in \(launched.runningApp.localizedName ?? "pid \(launched.pid)")")
+                    return
+                }
+                FileHandle.standardError.write(Data("found “\(title)” but AXPress failed\n".utf8))
+                throw ExitCode(1)
+            }
+        }
+        let tried = candidates.joined(separator: ", ")
+        FileHandle.standardError.write(Data("No matching button found (tried: \(tried)).\n".utf8))
+        throw ExitCode(1)
+    }
+}
+
 struct DumpAxtree: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "dump-axtree",
@@ -233,11 +271,19 @@ struct DumpAxtree: ParsableCommand {
     @Flag(name: .long, help: "Only include interactive elements (buttons, fields, rows, …).")
     var interactiveOnly: Bool = false
 
+    @Flag(name: .long, help: "Drop the menu bar and menu items (usually noise for authoring).")
+    var omitMenubar: Bool = false
+
+    @Option(name: .long, help: "Only include nodes inside the first element of this role (e.g. AXWindow).")
+    var underRole: String?
+
     func run() throws {
         let launched = try Inspect.attach(app: app, pid: pid)   // attach, never launch
         let appEl = Inspect.appElement(launched)
         let snap = AXTree.snapshot(appEl)
-        let nodes = interactiveOnly ? snap.nodes.filter { AXRoles.isInteractive($0["role"]) } : snap.nodes
+        var nodes = interactiveOnly ? snap.nodes.filter { AXRoles.isInteractive($0["role"]) } : snap.nodes
+        if let role = underRole { nodes = TreeFilter.underRole(role, nodes) }
+        if omitMenubar { nodes = TreeFilter.omitMenuBar(nodes) }
         let payload: [String: Any] = [
             "pid": launched.pid,
             "appName": launched.runningApp.localizedName ?? "",
@@ -360,7 +406,7 @@ struct Run: ParsableCommand {
         do { plan = try PlanParser().parse(data: data, baseDirectory: baseDir) }
         catch {
             FileHandle.standardError.write(Data("Plan error: \(error)\n".utf8))
-            throw ExitCode(2)
+            throw Self.parseExitCode(for: error)
         }
 
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(
@@ -442,6 +488,15 @@ struct Run: ParsableCommand {
         case .pass, .skipped: return
         case .fail, .error: throw ExitCode(1)
         }
+    }
+
+    /// Map a plan-parse error to an exit code. An **unsupported key chord** gets
+    /// its own code (4) so a harness can distinguish "this key isn't supported yet"
+    /// from a malformed/invalid plan (2) — the report asked for this triage signal.
+    /// Exit codes: 0 ok · 1 test failed · 2 invalid plan · 3 no Accessibility · 4 unsupported key.
+    static func parseExitCode(for error: any Error) -> ExitCode {
+        if case PlanError.unsupportedKey = error { return ExitCode(4) }
+        return ExitCode(2)
     }
 
     /// A synthetic error Report for a plan that couldn't be read/parsed/run, so
