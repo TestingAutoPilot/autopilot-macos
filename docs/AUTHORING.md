@@ -997,6 +997,8 @@ alternative:
 | `setValue` then Return doesn't commit | `setValue` fires no action | use `type` with `"commit": true` |
 | keystrokes dropped on the first step | (mitigated) app not yet key | the runner now activates + waits; ensure a `waitFor` window step first |
 | `type` into a search/rename field types nothing | type's focus-click dropped the app's existing first-responder | use `"focus": false` (the app already focused it). `type` sends virtual-key events, so search fields (`NSSearchField`) work too |
+| re-editing the **same** field a second time drops the text (field keeps its first value) | (fixed) a prior `commit`/Return tore down the field editor; a re-click alone did not re-begin editing | `type` now confirms focus and re-arms the field editor (AXPress) before typing — ensure you're on a current build; no plan change needed |
+| the **first** `type` into a just-opened panel field lands nothing | (fixed) `waitFor present` resolves before the field is first-responder | `type` now polls focus and retries before typing; keep the `waitFor` on the field, no settle needed |
 | non-ANSI characters (accents, emoji) don't type | only ANSI keys have virtual keycodes | those fall back to unicode-string synthesis automatically; if a field editor rejects them, that's a known limit |
 | `assert value` on a checkbox reads empty | (fixed) numeric AXValue | now returns `"0"`/`"1"`; ensure you're on a current build |
 | `assert marked` reads `false` on a fresh menu | menu state isn't populated until the menu is opened/validated | open the menu (or prefer asserting the toggle's side effect) |

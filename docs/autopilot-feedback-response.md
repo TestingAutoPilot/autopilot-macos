@@ -117,6 +117,48 @@ indirectly by pasting. Added:
   steps still can't target another process's window — invoke this out-of-band
   (e.g. a suite runner between plans).
 
+### Third pass — the two runtime items medit's branch re-validation surfaced
+
+medit validated `feature/ap-feedback` and reported two AutoPilot-runtime items the
+branch had **not** closed (plus two minor caveats). Both are the same root cause and
+are now fixed.
+
+- **D3 — same text field re-edited twice in one run silently drops the second edit.**
+  **FIXED.** Root cause: `type` fired focus events (a click + a `kAXFocusedAttribute`
+  write) and typed IMMEDIATELY, with no read-back. On a field re-edited after a prior
+  `commit`/Return, AppKit had torn down the field editor and resigned first responder;
+  a bare `kAXFocusedAttribute` write marks the control focused but does **not** re-begin
+  editing, so the keystrokes landed nowhere. `type` now **confirms focus before typing**
+  and **escalates to an `AXPress`** (which re-arms the field editor / begins editing)
+  when a plain focus attempt does not take. The pure decision logic lives in
+  `FocusConfirmer` (headless-unit-tested: `FocusConfirmerTests`).
+  **Verified live against the medit Debug build** with medit's exact repro
+  (`settings.tabWidth` set 6 then 3): pre-fix the run failed `check2` with
+  `expected=3 actual=6` (the second edit dropped, exactly as reported); post-fix the
+  same plan is 6/6 PASS. (The single-window TestHostApp fixture does not reproduce D3
+  — its plain re-click re-focuses the field — so the fixture test
+  `sameFormatterFieldReEditsTwiceInOneRun` is coverage, not the D3 guard; the escalation
+  logic is guarded by `FocusConfirmerTests` and the fix is proven by the medit repro.)
+- **Freshly-opened panel field not editable even after `waitFor present`.** **FIXED by
+  the same change.** `waitFor present` resolves when the element exists in the AX tree,
+  which can precede it becoming first-responder on a just-opened panel — so the old
+  fire-and-forget first `type` raced the panel and dropped the text (~3/5 on medit's
+  host). The focus-confirm loop now **polls readiness and re-attempts** instead of firing
+  once, so `type` only sends keystrokes once the field is genuinely focused. (This host
+  is fast enough that the readiness race did not reproduce here — 5/5 both pre- and
+  post-fix on the medit Debug build — but the confirm loop is the correct mitigation and
+  is demonstrably harmless: existing live typing tests, incl. `focus:false` search-field
+  typing, still pass.)
+- **Caveat — `dismiss-alert` timing:** the LaunchServices modal self-expires in
+  ~2–10 s, so `dismiss-alert` only succeeds while it is up ("No matching button found"
+  after). This is inherent — invoke it immediately after the denied-file plan.
+  Documented as a usage note, not a code change.
+- **Caveat — cold `menu` `markChar`:** a checked item's `AXMenuItemMarkChar` is only
+  populated after AppKit's `validateMenuItem` runs, i.e. after the menu is opened, so a
+  cold `menu` dump reads it empty. This is the AppKit constraint the report itself notes;
+  `menu` surfaces the item + its `enabled` flag (the discovery gap), and toggle state is
+  best asserted via the app's own side-effect surface.
+
 ## OPEN — genuinely not fixable (laws of physics, not defects)
 
 - **Exact screenshot hues / pixel-perfect visual state.** Colors are

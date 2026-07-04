@@ -102,6 +102,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate,
     let dropWell = DropWellView()
     let dropResultLabel = NSTextField(labelWithString: "drop: none")
 
+    // 39-40 tabWidthField: an NSNumberFormatter-backed field that resigns first
+    // responder on end-editing — mirroring medit's `settings.tabWidth`. This is the
+    // control that reproduces the "same field re-edited twice is dropped" bug (D3):
+    // committing (Return) validates via the formatter and tears down the field
+    // editor, so a second `type` must re-arm editing (AXPress) before it takes.
+    let tabWidthField = NSTextField()
+    let tabWidthLabel = NSTextField(labelWithString: "tabWidth: 4")
+
     let fileItems = ["document.pdf", "photo.jpg", "notes.txt"]
     let flagItem = NSMenuItem(title: "Toggle Flag", action: #selector(toggleFlag), keyEquivalent: "")
 
@@ -319,6 +327,22 @@ final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate,
         dropResultLabel.frame = NSRect(x: rightX + 210, y: ry + 8, width: 380, height: 20); root.addSubview(dropResultLabel)
         ry += 50
 
+        // 39 tabWidthField (formatter-backed) + 40 tabWidthLabel — the D3 repro.
+        let fmt = NumberFormatter()
+        fmt.numberStyle = .none
+        fmt.minimum = 1
+        fmt.maximum = 12
+        tabWidthField.setAccessibilityIdentifier("tabWidthField")
+        tabWidthField.formatter = fmt
+        tabWidthField.integerValue = 4
+        tabWidthField.isEditable = true
+        tabWidthField.isBordered = true
+        tabWidthField.delegate = self
+        tabWidthField.frame = NSRect(x: rightX, y: ry, width: 80, height: 24); root.addSubview(tabWidthField)
+        makeLabel(tabWidthLabel, id: "tabWidthLabel", value: "tabWidth: 4")
+        tabWidthLabel.frame = NSRect(x: rightX + 100, y: ry + 4, width: 200, height: 20); root.addSubview(tabWidthLabel)
+        ry += 40
+
         window.contentView = root
     }
 
@@ -406,7 +430,19 @@ final class AppController: NSObject, NSApplicationDelegate, NSTextFieldDelegate,
     func controlTextDidChange(_ obj: Notification) {
         if obj.object as? NSTextField === nameField {
             setLabel(statusLabel, "status: \(nameField.stringValue)")
+        } else if obj.object as? NSTextField === tabWidthField {
+            setLabel(tabWidthLabel, "tabWidth: \(tabWidthField.stringValue)")
         }
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        // Mirror medit's formatter field: on commit, validate + resign first
+        // responder to the window. This tears down the field editor, which is what
+        // makes a naive second `type` into the same field a no-op — the D3 bug that
+        // AutoPilot's focus-confirm-then-AXPress path must overcome.
+        guard obj.object as? NSTextField === tabWidthField else { return }
+        setLabel(tabWidthLabel, "tabWidth: \(tabWidthField.stringValue)")
+        window.makeFirstResponder(nil)
     }
 
     @objc func okTapped() {

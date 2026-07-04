@@ -73,6 +73,57 @@ import AutopilotCore
         #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
     }
 
+    /// Coverage for re-editing the SAME formatter-backed text field twice in one
+    /// run (clear+commit each time), against a field that validates + resigns first
+    /// responder on controlTextDidEndEditing like medit's settings.tabWidth. This is
+    /// the shape of medit's D3 report (settings.tabWidth 6→3). NOTE: on a plain
+    /// single-window fixture the second edit already re-focuses via the focus-confirm
+    /// loop's re-click, so this passes with or without the AXPress escalation — the
+    /// escalation is what closes D3 against medit's real *separate Settings panel*,
+    /// verified directly against the medit Debug build (fails expected=3 actual=6
+    /// pre-fix, 6/6 post-fix; see docs/autopilot-feedback-response.md). The pure
+    /// escalation logic itself is guarded by FocusConfirmerTests.
+    @Test func sameFormatterFieldReEditsTwiceInOneRun() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else {
+            Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
+            return
+        }
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-it-\(UUID().uuidString)")
+        func edit(_ id: String, _ text: String, level: StepLevel) -> Step {
+            Step(id: id, action: .type, level: level,
+                 target: Selector(role: "AXTextField", identifier: "tabWidthField"),
+                 args: { var a = ActionArgs(); a.text = text; a.clear = true; a.commit = true; return a }())
+        }
+        let plan = Plan(
+            schemaVersion: "1.1",
+            name: "host: same formatter field re-edited twice",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                edit("edit1", "6", level: .happyPath),
+                Step(id: "check1", action: .assert, level: .happyPath,
+                     target: Selector(identifier: "tabWidthLabel"),
+                     assert: Assertion(property: .value, op: .contains, expected: "tabWidth: 6")),
+                // Re-edit the SAME field — the step that was silently dropped pre-fix
+                // (medit saw settings.tabWidth stay 6 when set 6→3).
+                edit("edit2", "3", level: .tryToBreakIt),
+                Step(id: "check2", action: .assert, level: .tryToBreakIt,
+                     target: Selector(identifier: "tabWidthLabel"),
+                     assert: Assertion(property: .value, op: .contains, expected: "tabWidth: 3")),
+                Step(id: "quit", action: .terminate, level: .happyPath),
+            ]
+        )
+        let runner = PlanRunner(driver: MacOSDriver())
+        let report = try runner.run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
     @Test func menuActionInvokesNoShortcutItem() async throws {
         guard AXIsProcessTrusted() else { return }
         let binary = testHostApp()
