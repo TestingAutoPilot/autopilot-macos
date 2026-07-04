@@ -402,8 +402,8 @@ Supported keys:
   `comma`, `period`, `slash`, `semicolon`, `quote`, `leftbracket`,
   `rightbracket`, `backslash`, `grave`, `minus`, `equal`).
 - Named keys: `return`/`enter`, `tab`, `space`, `delete`, `forwarddelete`,
-  `escape`, `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`,
-  `f1`–`f12`.
+  `escape`, `insert` (a.k.a. `help` — toggles overwrite mode in editors),
+  `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`, `f1`–`f12`.
 
 Examples: `"cmd+s"`, `"shift+cmd+a"`, `"cmd+f"`, `"cmd+,"` (Preferences),
 `"escape"`, `"cmd+pagedown"`.

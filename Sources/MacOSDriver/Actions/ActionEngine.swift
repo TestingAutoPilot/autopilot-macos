@@ -21,6 +21,10 @@ public struct ActionEngine {
     static let namedKeyCodes: [String: CGKeyCode] = [
         "return": 36, "enter": 36, "tab": 48, "space": 49, "delete": 51,
         "forwarddelete": 117, "escape": 53,
+        // Insert/overwrite-mode key. macOS keyboards label kVK_Help (114) as the
+        // physical Insert key; `help` is its AppKit name. Editors (medit) toggle
+        // overwrite mode on it.
+        "insert": 114, "help": 114,
         "left": 123, "right": 124, "down": 125, "up": 126,
         "home": 115, "end": 119, "pageup": 116, "pagedown": 121,
         // Named aliases for punctuation so chords can spell them out.
