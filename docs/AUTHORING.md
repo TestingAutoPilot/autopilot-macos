@@ -142,6 +142,35 @@ Each step is one action. Common shape:
 | `snapshot` | optional | `reference`,`maxDiff` | Captures a region; writes a reference PNG on first run, diffs against it on later runs. Visual regression. See §13. |
 | `wait` | no | `seconds` | Fixed delay. **Discouraged** — prefer `waitFor`. Use only as a last resort. |
 
+#### Selecting a value from a pop-up button (`AXPopUpButton`)
+
+There is **no dedicated popup action** — and `type`-ing the item title does **not**
+select it (the value stays unchanged). The reliable recipe is two steps: `press`
+the pop-up to open its menu, then `click` the menu item by role+title.
+
+```jsonc
+{ "id": "open-appearance", "action": "press", "level": "happyPath",
+  "target": { "identifier": "settings.appearancePopup" } },
+{ "id": "pick-dark", "action": "click", "level": "happyPath",
+  "target": { "role": "AXMenuItem", "title": "Dark" } }
+```
+
+To confirm the selection, assert the pop-up's `value` (it reads the chosen title):
+
+```jsonc
+{ "id": "assert-dark", "action": "assert", "level": "happyPath",
+  "target": { "identifier": "settings.appearancePopup" },
+  "assert": { "property": "value", "op": "equals", "expected": "Dark" } }
+```
+
+**Re-opening the same (or another) pop-up needs a focus reset.** After a
+selection, a second `press` on the same `AXPopUpButton` may not re-open its menu,
+and opening a *different* pop-up later in the same run can also fail — the prior
+menu's teardown leaves first-responder in a state that swallows the next open.
+Move focus off the control between opens (e.g. `click` a neutral element, or a
+short `waitFor` on something else) before the next `press`. If a menu-open step
+returns instantly and nothing opened, this is why.
+
 ## 4a. Comprehensive testing — the `level` tier + AX **and** vision
 
 A good plan is *comprehensive* in two independent dimensions. Author for both.
@@ -462,6 +491,20 @@ In SwiftUI:
 
 This is the single highest-leverage thing you can do to make an app testable —
 it moves the element onto the deterministic AX path.
+
+**Cell-based AppKit controls need the identifier on the *cell*.** For the older
+cell-based `NSButton` / `NSTextField` / `NSPopUpButton` (anything with an
+`NSCell`), `setAccessibilityIdentifier(_:)` **on the control** does *not* surface
+in the AX tree — `dump_axtree` and `find` show the element with a role but **no
+identifier**, which looks like the app forgot to set one. Set it on the cell too:
+
+```swift
+button.setAccessibilityIdentifier("okButton")
+button.cell?.setAccessibilityIdentifier("okButton")   // required for cell-based controls
+```
+
+If you see an element that should have an identifier but doesn't, this is the
+usual cause.
 
 ---
 

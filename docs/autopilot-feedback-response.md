@@ -40,31 +40,23 @@ items are documentation gaps and two genuinely-missing runtime primitives.
 ## DONE THIS PASS (committed alongside this doc)
 
 ### AUTHORING.md doc-gap closure
-The report's biggest remaining category was **documentation defects** — behaviors
-that are real and correct but undocumented, so an author working within the docs
-couldn't know them. Added to `docs/AUTHORING.md`:
+Much of the report's "documentation defects" category was **already documented**
+in the current `docs/AUTHORING.md` — §15 (AppKit → AX cheat sheet), §16 (What is
+NOT observable, incl. menu checkmarks → assert the side effect), §17
+(Troubleshooting: `focus:false`, `setValue`-vs-`type`, include base-dir rule,
+punctuation, checkbox numeric value, menu-can't-be-clicked). Those D-items needed
+no change. The genuinely-missing pieces added this pass:
 
-- **Pop-up button (`AXPopUpButton`) selection recipe** (D1): `press` to open, then
-  `click` an `{role: AXMenuItem, title: …}` — `type` does not select a popup value.
-- **Pop-up re-open / focus-reset constraint** (D2): move focus off the control
-  between opens.
-- **Same-field re-edit caveat** (D3) and **`setValue` vs `type` semantics** (P2 /
-  D4): `setValue` sets the AX value only and fires no action; `type` (with
-  `commit`) drives the control's end-editing path.
-- **Cell-based control identifier note** (D5): for cell-based
-  `NSButton`/`NSTextField`/`NSPopUpButton`, the identifier must be set on the
-  *cell* to surface in the AX tree.
-- **AppKit → AX role cheat sheet** (`NSTextView`→`AXTextArea`, `NSOutlineView`→
-  `AXOutline`, rows→`AXRow`/`AXCell`, `NSRulerView`→not addressable, buttons→
-  `AXButton`/`AXCheckBox`, `NSPopUpButton`→`AXPopUpButton`).
-- **"What is NOT observable" box**: menu checkmarks (assert the side effect),
-  ruler/gutter views, layout-manager temporary attributes, anything drawn without
-  an AX element.
-- **`focus:false` rule** and the search-field (`NSSearchField`) note.
-- **Include base-dir rule** with a nested example ("relative to the file that
-  declares them").
-- **Full supported key list + punctuation.**
-- **Clean-state recipe for document-based apps** (state restoration + autosave).
+- **Pop-up button (`AXPopUpButton`) selection recipe** (D1) — a new subsection
+  under §4: `press` to open, then `click` an `{role: AXMenuItem, title: …}`;
+  `type` does not select a popup value. With a `value` assert to confirm.
+- **Pop-up re-open / focus-reset constraint** (D2) — same subsection: move focus
+  off the control between opens.
+- **Cell-based control identifier note** (D5) — added to §8: for cell-based
+  `NSButton`/`NSTextField`/`NSPopUpButton`, the identifier must also be set on the
+  control's **cell** to surface in the AX tree.
+
+(New doc entries for the two runtime features below are added alongside them.)
 
 ### Menu-item discovery (feature A) — the disabled-item gap (medit 2.7.4 P2)
 `menu` could not reach an item that is disabled at menu-open time (e.g. "Column
