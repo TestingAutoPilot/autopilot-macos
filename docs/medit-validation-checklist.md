@@ -9,6 +9,11 @@ the AutoPilot session does not write into medit's tree._
 release gate). Validate from the branch first; a release follows only after an
 explicit "go".
 
+**Latest additions (items 7–10 below):** D3 same-field-re-edit fix, freshly-opened-
+panel first-`type` readiness fix, the `insert`/overwrite-mode key, and the new
+`exec` step (mid-plan file-change + Save disk-content verification). Pull the branch
+again — items 7–10 are newer than an earlier build you may have validated.
+
 ## How to build the branch to validate against
 
 ```bash
@@ -107,6 +112,79 @@ yet" from "plan is broken."
 **Validate:** in the suite runner, treat exit 4 differently if you special-case
 unsupported keys. (Exit codes: 0 ok · 1 test-failed · 2 invalid plan · 3 no
 Accessibility · 4 unsupported key.)
+
+### 7. Re-editing the SAME field twice now takes (closes **D3**)
+Your exact repro (`type` clear+commit `settings.tabWidth` = `6`, then again = `3`)
+now ends at **3**. Before the fix the second `type` was silently dropped because
+the prior Return tore down the field editor; `type` now confirms focus and re-arms
+the field editor (AXPress) before typing. **No plan change needed.**
+```jsonc
+// two edits of the SAME field in one run — the second now commits:
+{ "id": "e1", "action": "type", "level": "happyPath",
+  "target": { "identifier": "settings.tabWidth" },
+  "args": { "text": "6", "clear": true, "commit": true } },
+{ "id": "c1", "action": "assert", "level": "happyPath",
+  "target": { "identifier": "settings.tabWidth" },
+  "assert": { "property": "value", "op": "equals", "expected": "6" } },
+{ "id": "e2", "action": "type", "level": "tryToBreakIt",
+  "target": { "identifier": "settings.tabWidth" },
+  "args": { "text": "3", "clear": true, "commit": true } },
+{ "id": "c2", "action": "assert", "level": "tryToBreakIt",
+  "target": { "identifier": "settings.tabWidth" },
+  "assert": { "property": "value", "op": "equals", "expected": "3" } }   // now PASSES
+```
+**Validate:** the plan above passes end to end. **Remove your D3 workarounds** —
+you no longer need to edit each field at most once per plan or split re-edit cases
+across plans. *(Verified directly against your medit Debug build: pre-fix `c2`
+failed `expected=3 actual=6`; post-fix 6/6 PASS.)*
+
+### 8. First `type` into a freshly-opened Settings panel (closes the new readiness flake)
+The `waitFor <field> present`-then-first-`type`-lands-nothing flake (you saw ~3/5)
+is fixed by the same change: `type` now polls focus/editability and retries before
+sending keystrokes, so `waitFor present` no longer gives a false "ready."
+**Validate:** your `settings-*` plans that open Settings via `cmd+,` and immediately
+`type` — you should be able to **drop the short settle** after opening the panel.
+*(Note: this readiness race is host-load-dependent and did not reproduce on my
+machine; please confirm on yours and report if it still flakes. The confirm-loop is
+the correct mitigation and is proven harmless — existing typing tests still pass.)*
+
+### 9. Insert / overwrite-mode key (closes **overwrite-mode gap**)
+`keyPress` now accepts `"insert"` (and its AppKit alias `"help"`), mapped to
+`kVK_Help` (114) — so a plan can toggle medit's overwrite mode.
+```jsonc
+{ "id": "toggle-ovr", "action": "keyPress", "level": "integrationSuite",
+  "target": { "identifier": "editorTextView" }, "args": { "keys": "insert" } }
+```
+**Validate:** `keyPress "insert"` toggles the OVR indicator (assert the
+`modeLabel`/OVR-pill side effect — remember menu/label *state* isn't readable
+directly, so assert the observable indicator).
+
+### 10. `exec` step — file-change + Save-verification (closes the **reload-banner** + **Save disk-content** gaps)
+A new `exec` step runs a shell command from within a plan. Provide **exactly one**
+of `command` (a shell string via `/bin/sh -c`) or `argv` (a `[program, arg…]` array,
+no shell). Bounded by `timeoutMs` (a hung command is killed → step fails).
+- A **bare** `exec` (no `assert`) is a **setup/teardown lever** — it runs and
+  **always passes**, ignoring the exit code.
+- To **gate**, attach an `assert` on `stdout` / `stderr` / `exitCode`
+  (`stdout`/`stderr` → `equals`/`contains`/`matches`; `exitCode` → those +
+  `greaterThan`/`lessThan`; `stdout`/`stderr` are trimmed of one trailing newline).
+
+```jsonc
+// (a) trigger medit's reload banner — mutate the open file on disk mid-plan:
+{ "id": "touch", "action": "exec", "level": "integrationSuite",
+  "args": { "command": "echo 'changed on disk' > /tmp/medit-ap/doc.md" } },
+// … then assert medit's reload/external-change banner appears.
+
+// (b) verify a Save wrote the right bytes to disk:
+{ "id": "verify-save", "action": "exec", "level": "happyPath",
+  "args": { "argv": ["/bin/cat", "/tmp/medit-ap/doc.md"] },
+  "assert": { "property": "stdout", "op": "contains", "expected": "the saved line" } }
+```
+**Validate:** (a) replace your out-of-band `osascript` file-mutation with an inline
+`exec` and confirm the reload banner fires from within one plan; (b) after a Save,
+`exec`-`cat` the file and assert its contents — no more paste-to-verify indirection.
+Arbitrary cross-plan setup (kill app, restage fixtures) still belongs in the suite
+runner; `exec` is for what a single plan needs inline. See AUTHORING **§5a**.
 
 ---
 
