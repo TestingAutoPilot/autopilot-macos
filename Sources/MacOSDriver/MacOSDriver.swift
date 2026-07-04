@@ -188,6 +188,14 @@ public struct MacOSDriver: AppDriver {
         NSPasteboard.general.string(forType: .string)
     }
 
+    // MARK: Process execution (exec step)
+
+    public func runProcess(command: String?, argv: [String]?, timeoutMs: Int,
+                           workingDir: String?) throws -> ProcessResult {
+        try ProcessRunner.run(command: command, argv: argv,
+                              timeoutMs: timeoutMs, workingDir: workingDir)
+    }
+
     // MARK: Helpers
 
     private func elementRef(from resolved: ResolvedElement) -> ElementRef? {

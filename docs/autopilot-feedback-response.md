@@ -159,6 +159,38 @@ are now fixed.
   `menu` surfaces the item + its `enabled` flag (the discovery gap), and toggle state is
   best asserted via the app's own side-effect surface.
 
+### Fourth pass — the single-plan coverage gaps medit flagged
+
+medit noted five capabilities its self-contained plans couldn't cover. Three were
+real AutoPilot capability gaps; two are the existing `attach:true` pattern or an
+inherent single-plan limit. The real gaps are now closed.
+
+- **Overwrite mode needs the Insert key — no `insert` in the key map.** **FIXED.**
+  Added `insert` (and its AppKit `help` alias) to the chord vocabulary, mapped to
+  `kVK_Help` (114). `keyPress` with `"insert"` now toggles an editor's overwrite
+  mode. Tests: `ChordValidatorTests` (core), `KeyChordParseTests` (macos). Design in
+  the same key extension as the punctuation keys.
+- **Reload banner (external file-change mid-run) + Save disk-content verification.**
+  **FIXED by the new `exec` step.** A plan step can now run a shell command
+  (`command`, via `/bin/sh -c`) or an argv array (`argv`, no shell), capturing
+  stdout/stderr/exitCode. A **bare** `exec` is a setup/teardown lever (always passes,
+  exit ignored) — use it to write/modify a file on disk mid-plan and trigger the
+  app's file-watcher (reload banner). An `exec` **with an assert** on
+  `stdout`/`stderr`/`exitCode` verifies a side effect — e.g. `cat` the saved file and
+  assert its bytes (Save verification). Bounded by `timeoutMs` (a hung command is
+  killed + fails). Execution is in the macOS driver (`ProcessRunner` via
+  `Foundation.Process`); core stays platform-pure (defaulted `AppDriver.runProcess`).
+  Tests: `PlanParserTests` (exactly-one-of command/argv; target-less exec asserts),
+  `RunExecTests` (bare-passes-on-nonzero; assert gates; launch-failure fails),
+  `ProcessRunnerTests` (real Process: stdout/argv/nonzero/stderr/launch-fail/timeout/
+  cwd), plus a live end-to-end (`execRoundTripsThroughRealDriver`) and a CLI proof.
+  See AUTHORING §5a. Design spec: `docs/specs/2026-07-04-exec-step-design.md`.
+- **Find-in-All-Tabs / Print (separate-process panels).** Partly the D7 cross-process
+  boundary (a `run` plan's steps can't target another process's window) — use
+  `dismiss-alert` / the `attach:true` two-phase pattern, and `exec` to stage state.
+- **The "two-phase attach:true plan"** medit named is the existing intended pattern,
+  not a gap — attach to already-arranged state instead of relaunching.
+
 ## OPEN — genuinely not fixable (laws of physics, not defects)
 
 - **Exact screenshot hues / pixel-perfect visual state.** Colors are

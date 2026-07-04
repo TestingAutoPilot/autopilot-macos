@@ -32,6 +32,10 @@ public struct MacAssertionReader {
             // `clipboard` reads the system pasteboard in the runner (target-less);
             // readProperty is never called for it.
             return nil
+        case .stdout, .stderr, .exitCode:
+            // Exec-scoped, target-less: the runner reads these from the process
+            // result of an `exec` step; readProperty is never called for them.
+            return nil
         }
     }
 }

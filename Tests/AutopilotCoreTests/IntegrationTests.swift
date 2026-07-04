@@ -189,6 +189,46 @@ import AutopilotCore
         #expect(MacOSDriver().readClipboard() == unique)
     }
 
+    @Test func execRoundTripsThroughRealDriver() async throws {
+        // Full parse→run→assert of the `exec` step against the real MacOSDriver,
+        // exercised via the TestHostApp so PlanRunner has an app to launch. Writes
+        // a temp file with a bare exec (setup), then reads it back with an
+        // exec+stdout-assert — mirrors medit's file-change / save-verification use.
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else {
+            Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
+            return
+        }
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
+
+        let marker = "autopilot-exec-\(UUID().uuidString)"
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(marker).txt").path
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-exec-\(UUID().uuidString)")
+        let plan = Plan(
+            schemaVersion: "1.1",
+            name: "host: exec round trip",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                // setup: write the marker to disk (bare exec, always passes)
+                Step(id: "write", action: .exec, level: .integrationSuite,
+                     args: { var a = ActionArgs(); a.command = "printf '\(marker)' > \(file)"; return a }()),
+                // verify: read it back and assert stdout contains the marker
+                Step(id: "verify", action: .exec, level: .happyPath,
+                     args: { var a = ActionArgs(); a.argv = ["/bin/cat", file]; return a }(),
+                     assert: Assertion(property: .stdout, op: .contains, expected: marker)),
+                Step(id: "quit", action: .terminate, level: .happyPath),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
     @Test func typeIntoSearchFieldViaKeycodes() async throws {
         guard AXIsProcessTrusted() else { return }
         let binary = testHostApp()

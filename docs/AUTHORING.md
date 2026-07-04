@@ -141,6 +141,7 @@ Each step is one action. Common shape:
 | `assertRegion` | optional | `color`,`width`,`height`,`mode` | Asserts the **average** or **dominant** color over a rectangle — robust for thin glyphs where `assertPixel` is fragile. See §13. |
 | `snapshot` | optional | `reference`,`maxDiff` | Captures a region; writes a reference PNG on first run, diffs against it on later runs. Visual regression. See §13. |
 | `wait` | no | `seconds` | Fixed delay. **Discouraged** — prefer `waitFor`. Use only as a last resort. |
+| `exec` | no | `command` **or** `argv` | Runs a shell command (`command`, via `/bin/sh -c`) or an argv array (`argv`, no shell), capturing stdout/stderr/exitCode. A **bare** `exec` is a setup/teardown lever — it always passes, ignoring the exit code. To gate the run, attach an `assert` on `stdout`/`stderr`/`exitCode`. Bounded by `timeoutMs`. See §5a. |
 
 #### Selecting a value from a pop-up button (`AXPopUpButton`)
 
@@ -411,6 +412,49 @@ Examples: `"cmd+s"`, `"shift+cmd+a"`, `"cmd+f"`, `"cmd+,"` (Preferences),
 An unsupported key throws a distinct `unsupportedKey` error (not confused with a
 malformed-JSON parse error). The `+` key is spelled **`plus`** (it is the chord
 separator), e.g. `"cmd+plus"` for zoom-in.
+
+---
+
+## 5a. Shell steps (`exec`)
+
+`exec` runs a command from within a plan — for **setup/teardown** the app can't
+do (stage a fixture, change a file on disk to trigger the app's file-watcher) and
+for **verifying side effects on disk** (did a Save write the right bytes?).
+
+Provide **exactly one** of:
+- `command` — a shell string, run via `/bin/sh -c` (pipes, redirects, globs, `&&`).
+- `argv` — `[program, arg, …]`, run directly with no shell (no quoting surprises).
+
+Commands run with the working directory set to the plan file's directory, and are
+bounded by the step/plan `timeoutMs` — a hung command is killed and the step fails.
+
+**Semantics:**
+- A **bare** `exec` (no `assert`) is a setup/teardown lever: it runs the command
+  and **always passes**, ignoring the exit code.
+- To **gate** the run, attach an `assert` whose `property` is `stdout`, `stderr`,
+  or `exitCode`. `stdout`/`stderr` use `equals`/`contains`/`matches`; `exitCode`
+  uses those plus `greaterThan`/`lessThan`. `stdout`/`stderr` are trimmed of a
+  single trailing newline.
+
+```jsonc
+// trigger an external file-change (reload banner) — pure setup, always passes:
+{ "id": "touch", "action": "exec", "level": "integrationSuite",
+  "args": { "command": "echo 'changed on disk' > /tmp/medit-ap/doc.md" } }
+
+// verify a Save wrote the right bytes to disk:
+{ "id": "verify-save", "action": "exec", "level": "happyPath",
+  "args": { "argv": ["/bin/cat", "/tmp/medit-ap/doc.md"] },
+  "assert": { "property": "stdout", "op": "contains", "expected": "the saved line" } }
+
+// gate on exit status:
+{ "id": "file-exists", "action": "exec", "level": "happyPath",
+  "args": { "command": "test -f /tmp/medit-ap/doc.md" },
+  "assert": { "property": "exitCode", "op": "equals", "expected": "0" } }
+```
+
+For arbitrary setup that spans plans (killing the app, restaging fixtures), a
+suite runner script between plans is still the right place; `exec` is for the
+setup/verification a single plan needs inline.
 
 ---
 
