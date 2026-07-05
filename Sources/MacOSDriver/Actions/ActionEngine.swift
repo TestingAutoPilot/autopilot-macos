@@ -21,6 +21,10 @@ public struct ActionEngine {
     static let namedKeyCodes: [String: CGKeyCode] = [
         "return": 36, "enter": 36, "tab": 48, "space": 49, "delete": 51,
         "forwarddelete": 117, "escape": 53,
+        // Insert/overwrite-mode key. macOS keyboards label kVK_Help (114) as the
+        // physical Insert key; `help` is its AppKit name. Editors (medit) toggle
+        // overwrite mode on it.
+        "insert": 114, "help": 114,
         "left": 123, "right": 124, "down": 125, "up": 126,
         "home": 115, "end": 119, "pageup": 116, "pagedown": 121,
         // Named aliases for punctuation so chords can spell them out.
@@ -75,6 +79,45 @@ public struct ActionEngine {
         }
     }
 
+    /// Number of focus/press rounds `type` tries before giving up on focusing a
+    /// field. Each round is followed by a short settle and a focus re-read; with
+    /// the settle below this bounds the focus wait to a fraction of a second — long
+    /// enough for a freshly-opened panel to become key, short enough to fail fast
+    /// on a genuinely un-focusable target.
+    static let focusMaxAttempts = 6
+    /// Pause between a focus action and re-reading kAXFocusedAttribute.
+    static let focusSettleMs: UInt32 = 40
+
+    /// Bring a field to first-responder and CONFIRM it before typing. Returns
+    /// whether the element is focused (or, for a bare point target / a control
+    /// that does not expose kAXFocusedAttribute, `true` — we can't confirm, so we
+    /// proceed as before). See the `.type` case for why this matters.
+    static func confirmFocus(ref: ElementRef, point p: CGPoint) -> Bool {
+        guard case .ax(let el) = ref else {
+            // No AX element to read/press — just click and proceed (pre-fix behavior).
+            EventSynthesizer.click(at: p)
+            return true
+        }
+        return FocusConfirmer.ensureFocused(
+            maxAttempts: focusMaxAttempts,
+            readFocused: { AXTree.bool(el, kAXFocusedAttribute as String) },
+            attemptFocus: {
+                // The plain focus attempt: click the field, then set AX focus. A
+                // synthesized click does not reliably transfer first-responder into
+                // some controls (an NSTextView nested in a scroll view, esp. on a
+                // headless display); the attribute write makes it deterministic.
+                EventSynthesizer.click(at: p)
+                AXUIElementSetAttributeValue(el, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+            },
+            beginEditing: {
+                // Escalation: AXPress begins editing on a text field, re-arming the
+                // field editor after a prior commit tore it down (the D3 case).
+                AXTree.press(el)
+            },
+            settle: { usleep(focusSettleMs * 1000) }
+        )
+    }
+
     /// Perform a step's action against a resolved element (when applicable).
     /// Returns nothing; throws on unrecoverable failures.
     public func perform(action: Action, args: ActionArgs?, ref: ElementRef?) throws {
@@ -93,20 +136,26 @@ public struct ActionEngine {
             if !AXTree.press(el) { throw PlanError.decode("AX press action failed") }
         case .type:
             guard let text = args?.text else { throw PlanError.decode("type needs text") }
-            // Focus the field with a click first — UNLESS focus:false. A focus
-            // click drops the first-responder/selection on fields the app has
-            // already focused (NSSearchField, an opened rename field), sending
-            // the text nowhere. focus:false types into the already-focused field.
+            // Focus the field first — UNLESS focus:false. A focus click drops the
+            // first-responder/selection on fields the app has already focused
+            // (NSSearchField, an opened rename field), sending the text nowhere;
+            // focus:false types into the already-focused field.
+            //
+            // Crucially, we do NOT fire focus-and-forget: we CONFIRM the field is
+            // actually focused before typing, and escalate to an AXPress if a plain
+            // click + kAXFocusedAttribute write does not take. This closes two
+            // dropped-keystroke bugs: (1) a freshly-opened panel field where focus
+            // races the window becoming key, and (2) re-editing the SAME field after
+            // a prior commit/Return tore down the field editor — setting
+            // kAXFocusedAttribute then marks the control focused but does not
+            // re-begin editing, so an AXPress is needed to re-arm the field editor.
             if args?.focus != false, let ref, let p = point(for: ref) {
-                EventSynthesizer.click(at: p)
-                // Also set AX focus directly. A synthesized click does not
-                // reliably transfer first-responder into some controls (notably
-                // an NSTextView nested in a scroll view, especially on a headless
-                // display) — the keystrokes then go nowhere. Setting
-                // kAXFocusedAttribute makes focus deterministic; harmless where
-                // the click already focused the element.
-                if case .ax(let el) = ref {
-                    AXUIElementSetAttributeValue(el, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+                let focused = Self.confirmFocus(ref: ref, point: p)
+                if case .ax = ref, !focused {
+                    // Focus never took after clicking, setting kAXFocusedAttribute,
+                    // and pressing — typing now would silently go nowhere. Fail loud.
+                    throw PlanError.decode(
+                        "type: could not focus the target field for editing (it never became first responder); the panel may not be key yet, or the field is not editable")
                 }
             }
             if args?.clear == true {
@@ -133,7 +182,7 @@ public struct ActionEngine {
         case .scroll:
             EventSynthesizer.scroll(dx: Int32(args?.deltaX ?? 0), dy: Int32(args?.deltaY ?? 0))
         case .launch, .terminate, .waitFor, .screenshot, .assert, .assertPixel,
-             .assertRegion, .snapshot, .wait, .menu, .drag:
+             .assertRegion, .snapshot, .wait, .menu, .drag, .exec:
             break // handled by PlanRunner, not here
         }
     }

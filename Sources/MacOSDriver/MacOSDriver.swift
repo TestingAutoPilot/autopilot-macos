@@ -178,6 +178,24 @@ public struct MacOSDriver: AppDriver {
         return SelectorSuggester.suggest(from: snap.nodes)
     }
 
+    public func listMenu(path: [String], app: LaunchedHandle) throws -> [MenuItemInfo] {
+        try menuNav.listItems(path: path, app: appElement(for: app))
+    }
+
+    // MARK: Clipboard
+
+    public func readClipboard() -> String? {
+        NSPasteboard.general.string(forType: .string)
+    }
+
+    // MARK: Process execution (exec step)
+
+    public func runProcess(command: String?, argv: [String]?, timeoutMs: Int,
+                           workingDir: String?) throws -> ProcessResult {
+        try ProcessRunner.run(command: command, argv: argv,
+                              timeoutMs: timeoutMs, workingDir: workingDir)
+    }
+
     // MARK: Helpers
 
     private func elementRef(from resolved: ResolvedElement) -> ElementRef? {

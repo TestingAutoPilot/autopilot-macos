@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import ApplicationServices
+import AppKit
 import AutopilotCore
 @testable import MacOSDriver
 
@@ -72,6 +73,57 @@ import AutopilotCore
         #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
     }
 
+    /// Coverage for re-editing the SAME formatter-backed text field twice in one
+    /// run (clear+commit each time), against a field that validates + resigns first
+    /// responder on controlTextDidEndEditing like medit's settings.tabWidth. This is
+    /// the shape of medit's D3 report (settings.tabWidth 6→3). NOTE: on a plain
+    /// single-window fixture the second edit already re-focuses via the focus-confirm
+    /// loop's re-click, so this passes with or without the AXPress escalation — the
+    /// escalation is what closes D3 against medit's real *separate Settings panel*,
+    /// verified directly against the medit Debug build (fails expected=3 actual=6
+    /// pre-fix, 6/6 post-fix; see docs/autopilot-feedback-response.md). The pure
+    /// escalation logic itself is guarded by FocusConfirmerTests.
+    @Test func sameFormatterFieldReEditsTwiceInOneRun() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else {
+            Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
+            return
+        }
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
+
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-it-\(UUID().uuidString)")
+        func edit(_ id: String, _ text: String, level: StepLevel) -> Step {
+            Step(id: id, action: .type, level: level,
+                 target: Selector(role: "AXTextField", identifier: "tabWidthField"),
+                 args: { var a = ActionArgs(); a.text = text; a.clear = true; a.commit = true; return a }())
+        }
+        let plan = Plan(
+            schemaVersion: "1.1",
+            name: "host: same formatter field re-edited twice",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                edit("edit1", "6", level: .happyPath),
+                Step(id: "check1", action: .assert, level: .happyPath,
+                     target: Selector(identifier: "tabWidthLabel"),
+                     assert: Assertion(property: .value, op: .contains, expected: "tabWidth: 6")),
+                // Re-edit the SAME field — the step that was silently dropped pre-fix
+                // (medit saw settings.tabWidth stay 6 when set 6→3).
+                edit("edit2", "3", level: .tryToBreakIt),
+                Step(id: "check2", action: .assert, level: .tryToBreakIt,
+                     target: Selector(identifier: "tabWidthLabel"),
+                     assert: Assertion(property: .value, op: .contains, expected: "tabWidth: 3")),
+                Step(id: "quit", action: .terminate, level: .happyPath),
+            ]
+        )
+        let runner = PlanRunner(driver: MacOSDriver())
+        let report = try runner.run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
     @Test func menuActionInvokesNoShortcutItem() async throws {
         guard AXIsProcessTrusted() else { return }
         let binary = testHostApp()
@@ -99,6 +151,77 @@ import AutopilotCore
                 Step(id: "assert-flag", action: .assert, level: .happyPath,
                      target: Selector(identifier: "statusLabel"),
                      assert: Assertion(property: .value, op: .contains, expected: "flag=true")),
+                Step(id: "quit", action: .terminate, level: .happyPath),
+            ]
+        )
+        let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(artifactsDir: artifacts))
+        #expect(report.result == .pass, "report: \(Reporter().humanSummary(report))")
+    }
+
+    @Test func listMenuReportsEnabledAndDisabledItems() async throws {
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else {
+            Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
+            return
+        }
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
+
+        let driver = MacOSDriver()
+        let app = try driver.launch(TargetApp(path: binary.path))
+        _ = driver.waitForPresence(Selector(role: "AXWindow"), present: true,
+                                   app: app, timeoutMs: 4000, intervalMs: 100)
+        defer { driver.terminate(app) }
+
+        let items = try driver.listMenu(path: ["View"], app: app)
+        // The View menu lists BOTH an enabled custom item and disabled system items
+        // — the whole point of listMenu vs. the enabled-only selectPath walker.
+        #expect(items.contains { $0.title == "Toggle Flag" && $0.enabled })
+        #expect(items.contains { !$0.enabled }, "expected at least one disabled item to be listed")
+    }
+
+    @Test func readClipboardRoundTrips() async throws {
+        // Clipboard read doesn't need AX permission, but keep it hermetic.
+        let unique = "autopilot-clip-\(UUID().uuidString)"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(unique, forType: .string)
+        #expect(MacOSDriver().readClipboard() == unique)
+    }
+
+    @Test func execRoundTripsThroughRealDriver() async throws {
+        // Full parse→run→assert of the `exec` step against the real MacOSDriver,
+        // exercised via the TestHostApp so PlanRunner has an app to launch. Writes
+        // a temp file with a bare exec (setup), then reads it back with an
+        // exec+stdout-assert — mirrors medit's file-change / save-verification use.
+        guard AXIsProcessTrusted() else { return }
+        let binary = testHostApp()
+        guard FileManager.default.fileExists(atPath: binary.path) else {
+            Issue.record("TestHostApp.app not built. Run: Fixtures/TestHostApp/make-app.sh")
+            return
+        }
+        killExistingTestHostApps()
+        defer { killExistingTestHostApps() }
+
+        let marker = "autopilot-exec-\(UUID().uuidString)"
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(marker).txt").path
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        let artifacts = FileManager.default.temporaryDirectory
+            .appendingPathComponent("autopilot-exec-\(UUID().uuidString)")
+        let plan = Plan(
+            schemaVersion: "1.1",
+            name: "host: exec round trip",
+            target: TargetApp(path: binary.path),
+            defaults: PlanDefaults(timeoutMs: 4000, retryIntervalMs: 100),
+            steps: [
+                // setup: write the marker to disk (bare exec, always passes)
+                Step(id: "write", action: .exec, level: .integrationSuite,
+                     args: { var a = ActionArgs(); a.command = "printf '\(marker)' > \(file)"; return a }()),
+                // verify: read it back and assert stdout contains the marker
+                Step(id: "verify", action: .exec, level: .happyPath,
+                     args: { var a = ActionArgs(); a.argv = ["/bin/cat", file]; return a }(),
+                     assert: Assertion(property: .stdout, op: .contains, expected: marker)),
                 Step(id: "quit", action: .terminate, level: .happyPath),
             ]
         )

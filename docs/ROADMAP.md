@@ -29,19 +29,28 @@ they're ordered by value-per-effort.
 
 ---
 
-## Status snapshot (what v1 already delivers)
+## Status snapshot (current capabilities)
 
 So the roadmap isn't read in a vacuum — current capabilities:
 
 - Actions: launch, terminate, click, doubleClick, rightClick, **press**, **menu**,
-  type (+clear/commit/focus, keycode-based so search fields work), keyPress (full
-  ANSI), setValue, scroll, **drag** (element→element), **assertPixel**, waitFor,
-  screenshot, assert, wait.
+  type (+clear/commit/focus, keycode-based so search fields work; focus-confirmed so
+  same-field re-edits and freshly-opened panels are reliable), keyPress (full ANSI
+  + **insert**/overwrite-mode), setValue, scroll, **drag** (element→element + real
+  file drop), **assertPixel**/**assertRegion**/**snapshot**, waitFor, screenshot,
+  assert, wait, **exec** (shell/argv + stdout/stderr/exitCode asserts).
 - Polled property asserts; app activation before input; AX-first targeting with
   deterministic vision fallback; per-plan artifact namespacing; ambiguous-match
-  listing; truncation signalling; error-vs-fail semantics; CLI + MCP front-ends;
-  `include` composition.
-- 65 tests; consumer-validated across 3 rounds (medit, 20 plans).
+  listing; truncation signalling; error-vs-fail semantics; CLI + MCP front-ends +
+  the **Cockpit GUI** (Inspect / Run / Author); `include` composition; `menu` and
+  `dismiss-alert` discovery/utility subcommands; dump-axtree filters; exit-code
+  triage (0/1/2/3/4).
+- Consumer-validated across multiple rounds (medit).
+
+> **Shipped since v3.1:** the `exec` shell step, the `insert` key, the `type`
+> focus-confirmation fix (same-field re-edit / freshly-opened-panel reliability),
+> and the Cockpit GUI. Milestones B (authoring ergonomics) and D (documented rough
+> edges) are partially delivered by these; the milestone sections below predate them.
 
 ---
 

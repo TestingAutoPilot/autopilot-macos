@@ -39,10 +39,15 @@ cp "$MCP"        "$DIST/AutopilotMCP"
 # ship — internal/historical notes (gap analyses, review findings) stay in git.
 DOCS_STAGE="$DIST/docs"
 mkdir -p "$DOCS_STAGE"
-for d in README.md docs/MANUAL.md docs/AUTHORING.md docs/ROADMAP.md docs/CI.md; do
+for d in README.md docs/MANUAL.md docs/AUTHORING.md docs/USER-GUIDE.md docs/ROADMAP.md docs/CI.md; do
   [ -f "$d" ] || { echo "ERROR: expected doc not found: $d" >&2; exit 1; }
   cp "$d" "$DOCS_STAGE/"
 done
+# Ship the user-guide images so the guide's screenshots render offline.
+if [ -d docs/images ]; then
+  mkdir -p "$DOCS_STAGE/images"
+  cp docs/images/*.png "$DOCS_STAGE/images/" 2>/dev/null || true
+fi
 
 # The drag-source helper must ship as a proper .app so it launches as a real
 # foreground GUI app (only a foreground app can originate a cross-process drag).
@@ -62,14 +67,36 @@ cat > "$DRAG_APP/Contents/Info.plist" <<'PL'
 </dict></plist>
 PL
 
+# The cockpit GUI ships as a proper .app so macOS can grant it Accessibility
+# permission by its bundle identity (a bare Mach-O can't hold that grant).
+COCKPIT_BIN="${BIN_PATH}/AutopilotCockpit"
+[ -x "$COCKPIT_BIN" ] || { echo "ERROR: expected binary not found: $COCKPIT_BIN" >&2; exit 1; }
+COCKPIT_APP="$DIST/AutopilotCockpit.app"
+mkdir -p "$COCKPIT_APP/Contents/MacOS"
+cp "$COCKPIT_BIN" "$COCKPIT_APP/Contents/MacOS/AutopilotCockpit"
+cat > "$COCKPIT_APP/Contents/Info.plist" <<PL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>AutopilotCockpit</string>
+<key>CFBundleIdentifier</key><string>com.autopilot.cockpit</string>
+<key>CFBundleName</key><string>AutoPilot Cockpit</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>${VERSION}</string>
+<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSHighResolutionCapable</key><true/>
+</dict></plist>
+PL
+
 echo "==> Signing (ad-hoc)…"
 codesign --force --sign - "$DIST/autopilot"
 codesign --force --sign - "$DIST/AutopilotMCP"
 codesign --force --sign - "$DRAG_APP"
+codesign --force --sign - "$COCKPIT_APP"
 
 TARBALL="${DIST}/autopilot-${VERSION}-${ARCH}.tar.gz"
 echo "==> Packaging → ${TARBALL}"
-tar -czf "$TARBALL" -C "$DIST" autopilot AutopilotMCP AutopilotDragSource.app docs
+tar -czf "$TARBALL" -C "$DIST" autopilot AutopilotMCP AutopilotDragSource.app AutopilotCockpit.app docs
 
 SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
 echo "==> SHA-256: ${SHA}"

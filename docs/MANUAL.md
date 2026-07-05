@@ -231,9 +231,39 @@ autopilot suggest com.apple.calculator
 
 This scans the AX tree for buttons, text fields, and other interactive controls, and proposes a selector for each — prioritizing stable `identifier`-based selectors over fragile `title`-based ones. Use `suggest` when starting a plan for an app you haven't worked with before.
 
-**All three commands attach to the already-running instance** — they do not relaunch the app. If no matching instance is running, they report that directly. Launch the app before running them.
+**All three commands attach to the already-running instance** — they do not relaunch the app. If no matching instance is running, they report that directly. Launch the app before running them. All three (and the two below) accept `--pid <pid>` to attach to an exact process when more than one instance of a bundle is running.
 
-**Recommended workflow:** run `suggest` first for a quick overview, then use `find` to verify specific selectors as you write your plan. Fall back to `dump-axtree` when you need to understand the complete tree structure.
+### Narrowing a large tree
+
+`dump-axtree` accepts filters so you don't wade through the whole system menu bar:
+
+```bash
+autopilot dump-axtree com.apple.calculator --under-role AXWindow --omit-menubar
+```
+
+`--under-role <role>` keeps only the first matching element's subtree (by frame containment); `--omit-menubar` drops menu-bar and menu nodes. Combine with `--interactive-only`.
+
+### `autopilot menu` — discover menu items
+
+Lists the items of a menu path as JSON, **including disabled ones** (which the `menu` action can't invoke but you still need to see):
+
+```bash
+autopilot menu com.apple.calculator --path View
+```
+
+Each item reports its title, `enabled` flag, whether it opens a submenu, and its mark character (a checkmark, when the menu has been opened).
+
+### `autopilot dismiss-alert` — a cross-process system alert
+
+Presses a button in an alert owned by **another** process (e.g. a LaunchServices permission dialog owned by `CoreServicesUIAgent`, which a plan attached to your app can't see):
+
+```bash
+autopilot dismiss-alert com.apple.coreservices.uiagent --button OK
+```
+
+With no `--button` it tries OK / Close / Cancel / Don't Save / Dismiss. Invoke it out-of-band (e.g. in a suite runner between plans) — a `run` plan's steps still can't target another process's window.
+
+**Recommended workflow:** run `suggest` first for a quick overview, then use `find` to verify specific selectors as you write your plan. Fall back to `dump-axtree` (with the filters above) when you need to understand the complete tree structure.
 
 ---
 
@@ -278,9 +308,9 @@ Prefer `press` over `click` for buttons, checkboxes, and toggles. `press` perfor
   "args": { "keys": "cmd+s" } }
 ```
 
-- `type` clicks to focus, then sends keystrokes. Use `clear: true` to select-all and delete first. Use `commit: true` to press Return after typing (needed for inline-rename fields). Use `focus: false` when the app already has focus on the field — a focus click would drop it.
+- `type` clicks to focus, then sends keystrokes. Use `clear: true` to select-all and delete first. Use `commit: true` to press Return after typing (needed for inline-rename fields). Use `focus: false` when the app already has focus on the field — a focus click would drop it. `type` **confirms the field is actually focused before typing** (polling, then re-arming the field editor if needed), so re-editing the same field a second time in one run — and typing into a freshly-opened panel field — work reliably; no manual settle needed.
 - `setValue` sets the element's AX value directly, bypassing keystrokes. It is fast but does not fire the control's end-editing action. Use `type` with `commit: true` when the commit matters.
-- `keyPress` sends a key chord. Modifiers: `cmd`, `shift`, `opt`/`alt`, `ctrl`. Example: `"shift+cmd+a"`, `"cmd+,"`. The `+` key is spelled `plus` (it is the chord separator).
+- `keyPress` sends a key chord. Modifiers: `cmd`, `shift`, `opt`/`alt`, `ctrl`. Example: `"shift+cmd+a"`, `"cmd+,"`. The `+` key is spelled `plus` (it is the chord separator). Named keys include `return`/`enter`, `tab`, `space`, `delete`, `escape`, **`insert`** (a.k.a. `help` — toggles an editor's overwrite mode), the arrows, `home`/`end`/`pageup`/`pagedown`, and `f1`–`f12`.
 
 ### Waiting: `waitFor`, `wait`
 
@@ -317,6 +347,23 @@ These actions require Screen Recording permission (checked by `autopilot doctor`
 
 `launch` is a no-op marker — the app is always launched automatically before step 1. It is useful as a visual separator in long plans. `terminate` quits the app. Always include it as your last step.
 
+### Shell steps: `exec`
+
+`exec` runs a command from within a plan — for setup/teardown the app can't do (stage a fixture, change a file on disk to trigger the app's file-watcher) and for verifying side effects on disk (did a Save write the right bytes?).
+
+```json
+{ "id": "touch",  "action": "exec", "level": "integrationSuite",
+  "args": { "command": "echo 'changed on disk' > /tmp/app/doc.md" } }
+
+{ "id": "verify", "action": "exec", "level": "happyPath",
+  "args": { "argv": ["/bin/cat", "/tmp/app/doc.md"] },
+  "assert": { "property": "stdout", "op": "contains", "expected": "the saved line" } }
+```
+
+- Provide **exactly one** of `command` (a shell string, run via `/bin/sh -c` — pipes, redirects, globs) or `argv` (a `[program, arg, …]` array, run directly with no shell).
+- A **bare** `exec` (no `assert`) is a setup/teardown lever: it runs the command and **always passes**, ignoring the exit code.
+- To gate the run, attach an `assert` on `stdout`, `stderr`, or `exitCode` (see Chapter 6). Commands run with the working directory set to the plan file's directory, and are bounded by `timeoutMs` — a hung command is killed and the step fails.
+
 ---
 
 ## 6. Assertions
@@ -331,8 +378,14 @@ Every `assert` step has an `assert` block with three fields: `property`, `op`, a
 | `title` | The element's visible label (`AXTitle`) |
 | `enabled` | Whether the element is enabled (`"true"` / `"false"`) |
 | `focused` | Whether the element has keyboard focus |
+| `position` | The element's top-left screen coordinate, `"x,y"` |
+| `size` | The element's size, `"w,h"` |
 | `count` | The number of elements matching the selector — for collections |
 | `marked` | Menu item checkmark state (`"true"` / `"false"`) |
+| `clipboard` | The system pasteboard's text — **target-less** (omit `target`); verify a copy landed |
+| `stdout` | The `exec` step's captured standard output — **target-less** (on an `exec` step) |
+| `stderr` | The `exec` step's captured standard error — **target-less** |
+| `exitCode` | The `exec` step's exit status (a number, as a string) — **target-less** |
 
 ### Operators
 
@@ -560,8 +613,9 @@ autopilot run tests/ --artifacts ./out
 | `1` | One or more test steps failed |
 | `2` | Plan or parse error (malformed JSON, rejected field) |
 | `3` | Accessibility permission missing |
+| `4` | Unsupported key in a chord (distinct from a malformed plan) |
 
-Use exit code 2 to distinguish infrastructure problems from test failures in CI.
+Use exit code 2 to distinguish infrastructure problems from test failures in CI, and exit 4 to triage "a key isn't supported yet" separately from "the plan is broken."
 
 ---
 
@@ -624,7 +678,14 @@ The MCP tools need the same Accessibility permission as the CLI. Run `autopilot 
 
 ## 12. Reference Links
 
+- **Illustrated walkthrough (CLI in action + the Cockpit GUI):** [docs/USER-GUIDE.md](USER-GUIDE.md)
 - **Full action, selector, and assertion reference:** [docs/AUTHORING.md](AUTHORING.md)
 - **Plan JSON schema (editor autocomplete):** [schema/plan.schema.json](../schema/plan.schema.json)
 - **GitHub repository:** [https://github.com/jschwefel-CBB/autopilot-macos](https://github.com/jschwefel-CBB/autopilot-macos)
 - **Filing issues:** [https://github.com/jschwefel-CBB/autopilot-macos/issues](https://github.com/jschwefel-CBB/autopilot-macos/issues)
+
+### The Cockpit GUI
+
+AutoPilot ships **AutopilotCockpit.app**, a visual companion for the CLI with three modes — **Inspect** (browse a target app's live accessibility tree and copy selectors), **Run** (drive a plan and watch pass/fail light up step by step), and **Author** (build and edit a plan visually). It drives apps through the same engine as the CLI, so a plan built in the Cockpit runs identically under `autopilot run`. Grant it Accessibility permission the same way you grant the CLI. See the [User Guide](USER-GUIDE.md) for an illustrated tour.
+
+The Cockpit accepts two optional launch arguments so it can start in a known state (useful for scripting or demos): `--attach-pid <pid>` pre-attaches to that process, and `--mode <inspect|author|run>` starts on that mode. Both are ignored if absent.

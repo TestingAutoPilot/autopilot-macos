@@ -141,6 +141,36 @@ Each step is one action. Common shape:
 | `assertRegion` | optional | `color`,`width`,`height`,`mode` | Asserts the **average** or **dominant** color over a rectangle — robust for thin glyphs where `assertPixel` is fragile. See §13. |
 | `snapshot` | optional | `reference`,`maxDiff` | Captures a region; writes a reference PNG on first run, diffs against it on later runs. Visual regression. See §13. |
 | `wait` | no | `seconds` | Fixed delay. **Discouraged** — prefer `waitFor`. Use only as a last resort. |
+| `exec` | no | `command` **or** `argv` | Runs a shell command (`command`, via `/bin/sh -c`) or an argv array (`argv`, no shell), capturing stdout/stderr/exitCode. A **bare** `exec` is a setup/teardown lever — it always passes, ignoring the exit code. To gate the run, attach an `assert` on `stdout`/`stderr`/`exitCode`. Bounded by `timeoutMs`. See §5a. |
+
+#### Selecting a value from a pop-up button (`AXPopUpButton`)
+
+There is **no dedicated popup action** — and `type`-ing the item title does **not**
+select it (the value stays unchanged). The reliable recipe is two steps: `press`
+the pop-up to open its menu, then `click` the menu item by role+title.
+
+```jsonc
+{ "id": "open-appearance", "action": "press", "level": "happyPath",
+  "target": { "identifier": "settings.appearancePopup" } },
+{ "id": "pick-dark", "action": "click", "level": "happyPath",
+  "target": { "role": "AXMenuItem", "title": "Dark" } }
+```
+
+To confirm the selection, assert the pop-up's `value` (it reads the chosen title):
+
+```jsonc
+{ "id": "assert-dark", "action": "assert", "level": "happyPath",
+  "target": { "identifier": "settings.appearancePopup" },
+  "assert": { "property": "value", "op": "equals", "expected": "Dark" } }
+```
+
+**Re-opening the same (or another) pop-up needs a focus reset.** After a
+selection, a second `press` on the same `AXPopUpButton` may not re-open its menu,
+and opening a *different* pop-up later in the same run can also fail — the prior
+menu's teardown leaves first-responder in a state that swallows the next open.
+Move focus off the control between opens (e.g. `click` a neutral element, or a
+short `waitFor` on something else) before the next `press`. If a menu-open step
+returns instantly and nothing opened, this is why.
 
 ## 4a. Comprehensive testing — the `level` tier + AX **and** vision
 
@@ -322,11 +352,23 @@ An `assert` step carries an `assert` block instead of (or alongside) plain args:
 
 **Properties** (`assert.property`): `value`, `title`, `enabled`, `focused`,
 `position`, `size`, `marked` (menu-item checkmark — `"true"`/`"false"` from
-`AXMenuItemMarkChar`), and `count` (the **number of elements** matching the
+`AXMenuItemMarkChar`), `count` (the **number of elements** matching the
 selector — for collections; use with `equals`/`greaterThan`/`lessThan`, e.g.
-`{ "property": "count", "op": "greaterThan", "expected": "1" }`). Presence is
-checked with the `exists`/`notExists` **ops** (any property), not an `exists`
-property.
+`{ "property": "count", "op": "greaterThan", "expected": "1" }`), and `clipboard`
+(the **system pasteboard's text** — see below). Presence is checked with the
+`exists`/`notExists` **ops** (any property), not an `exists` property.
+
+**`clipboard` — asserting the system pasteboard.** A `clipboard` assert reads the
+current pasteboard string and compares it; it is **target-less** (omit `target`).
+Use it to verify a copy landed, or that copying nothing left the clipboard alone:
+
+```json
+{ "id": "copy-worked", "action": "assert", "level": "happyPath",
+  "assert": { "property": "clipboard", "op": "equals", "expected": "hello" } }
+```
+
+It polls like any value assert (a copy may land a beat after the action). An empty
+pasteboard reads as the empty string `""`.
 
 **Operators** (`assert.op`):
 
@@ -361,8 +403,8 @@ Supported keys:
   `comma`, `period`, `slash`, `semicolon`, `quote`, `leftbracket`,
   `rightbracket`, `backslash`, `grave`, `minus`, `equal`).
 - Named keys: `return`/`enter`, `tab`, `space`, `delete`, `forwarddelete`,
-  `escape`, `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`,
-  `f1`–`f12`.
+  `escape`, `insert` (a.k.a. `help` — toggles overwrite mode in editors),
+  `left`, `right`, `up`, `down`, `home`, `end`, `pageup`, `pagedown`, `f1`–`f12`.
 
 Examples: `"cmd+s"`, `"shift+cmd+a"`, `"cmd+f"`, `"cmd+,"` (Preferences),
 `"escape"`, `"cmd+pagedown"`.
@@ -370,6 +412,49 @@ Examples: `"cmd+s"`, `"shift+cmd+a"`, `"cmd+f"`, `"cmd+,"` (Preferences),
 An unsupported key throws a distinct `unsupportedKey` error (not confused with a
 malformed-JSON parse error). The `+` key is spelled **`plus`** (it is the chord
 separator), e.g. `"cmd+plus"` for zoom-in.
+
+---
+
+## 5a. Shell steps (`exec`)
+
+`exec` runs a command from within a plan — for **setup/teardown** the app can't
+do (stage a fixture, change a file on disk to trigger the app's file-watcher) and
+for **verifying side effects on disk** (did a Save write the right bytes?).
+
+Provide **exactly one** of:
+- `command` — a shell string, run via `/bin/sh -c` (pipes, redirects, globs, `&&`).
+- `argv` — `[program, arg, …]`, run directly with no shell (no quoting surprises).
+
+Commands run with the working directory set to the plan file's directory, and are
+bounded by the step/plan `timeoutMs` — a hung command is killed and the step fails.
+
+**Semantics:**
+- A **bare** `exec` (no `assert`) is a setup/teardown lever: it runs the command
+  and **always passes**, ignoring the exit code.
+- To **gate** the run, attach an `assert` whose `property` is `stdout`, `stderr`,
+  or `exitCode`. `stdout`/`stderr` use `equals`/`contains`/`matches`; `exitCode`
+  uses those plus `greaterThan`/`lessThan`. `stdout`/`stderr` are trimmed of a
+  single trailing newline.
+
+```jsonc
+// trigger an external file-change (reload banner) — pure setup, always passes:
+{ "id": "touch", "action": "exec", "level": "integrationSuite",
+  "args": { "command": "echo 'changed on disk' > /tmp/medit-ap/doc.md" } }
+
+// verify a Save wrote the right bytes to disk:
+{ "id": "verify-save", "action": "exec", "level": "happyPath",
+  "args": { "argv": ["/bin/cat", "/tmp/medit-ap/doc.md"] },
+  "assert": { "property": "stdout", "op": "contains", "expected": "the saved line" } }
+
+// gate on exit status:
+{ "id": "file-exists", "action": "exec", "level": "happyPath",
+  "args": { "command": "test -f /tmp/medit-ap/doc.md" },
+  "assert": { "property": "exitCode", "op": "equals", "expected": "0" } }
+```
+
+For arbitrary setup that spans plans (killing the app, restaging fixtures), a
+suite runner script between plans is still the right place; `exec` is for the
+setup/verification a single plan needs inline.
 
 ---
 
@@ -462,6 +547,20 @@ In SwiftUI:
 
 This is the single highest-leverage thing you can do to make an app testable —
 it moves the element onto the deterministic AX path.
+
+**Cell-based AppKit controls need the identifier on the *cell*.** For the older
+cell-based `NSButton` / `NSTextField` / `NSPopUpButton` (anything with an
+`NSCell`), `setAccessibilityIdentifier(_:)` **on the control** does *not* surface
+in the AX tree — `dump_axtree` and `find` show the element with a role but **no
+identifier**, which looks like the app forgot to set one. Set it on the cell too:
+
+```swift
+button.setAccessibilityIdentifier("okButton")
+button.cell?.setAccessibilityIdentifier("okButton")   // required for cell-based controls
+```
+
+If you see an element that should have an identifier but doesn't, this is the
+usual cause.
 
 ---
 
@@ -942,6 +1041,8 @@ alternative:
 | `setValue` then Return doesn't commit | `setValue` fires no action | use `type` with `"commit": true` |
 | keystrokes dropped on the first step | (mitigated) app not yet key | the runner now activates + waits; ensure a `waitFor` window step first |
 | `type` into a search/rename field types nothing | type's focus-click dropped the app's existing first-responder | use `"focus": false` (the app already focused it). `type` sends virtual-key events, so search fields (`NSSearchField`) work too |
+| re-editing the **same** field a second time drops the text (field keeps its first value) | (fixed) a prior `commit`/Return tore down the field editor; a re-click alone did not re-begin editing | `type` now confirms focus and re-arms the field editor (AXPress) before typing — ensure you're on a current build; no plan change needed |
+| the **first** `type` into a just-opened panel field lands nothing | (fixed) `waitFor present` resolves before the field is first-responder | `type` now polls focus and retries before typing; keep the `waitFor` on the field, no settle needed |
 | non-ANSI characters (accents, emoji) don't type | only ANSI keys have virtual keycodes | those fall back to unicode-string synthesis automatically; if a field editor rejects them, that's a known limit |
 | `assert value` on a checkbox reads empty | (fixed) numeric AXValue | now returns `"0"`/`"1"`; ensure you're on a current build |
 | `assert marked` reads `false` on a fresh menu | menu state isn't populated until the menu is opened/validated | open the menu (or prefer asserting the toggle's side effect) |
@@ -1029,11 +1130,38 @@ Beyond `run`:
 
 ```bash
 autopilot doctor                       # check Accessibility permission (exit 3 if missing)
-autopilot dump-axtree <app> [--pid N] [--interactive-only]   # print the AX tree to discover selectors
+autopilot dump-axtree <app> [--pid N] [--interactive-only] [--under-role AXWindow] [--omit-menubar]
 autopilot find <app> --identifier foo  # show what a selector resolves to (and how many)
 autopilot suggest <app>                # suggest the best selector for each interactive element
+autopilot menu <app> [--path View]     # list a menu's items as JSON, INCLUDING disabled ones
+autopilot dismiss-alert <app> [--button OK]   # press a button in ANOTHER process's alert (see below)
 autopilot lint <plan|dir>              # flag non-functional label/path, missing terminate/window-wait
 ```
+
+> **`dump-axtree` filters.** A real app's tree can be hundreds of nodes. Trim it:
+> `--interactive-only` (buttons/fields/rows), `--under-role AXWindow` (only the
+> first window's subtree — drops the menu bar and other windows), `--omit-menubar`
+> (drop menu-bar/menu nodes). Combine them.
+
+> **`dismiss-alert` — a foreign-process alert.** Some failures raise a modal that a
+> target-attached run **cannot** see, because it's owned by a *different* process —
+> e.g. LaunchServices' "you don't have permission to open …" alert is owned by
+> **`CoreServicesUIAgent`**, not your app. `dismiss-alert` attaches to that owner
+> and presses a button: `autopilot dismiss-alert com.apple.coreservices.uiagent`
+> (or `--pid N`, or `--button "Don't Save"`). With no `--button` it tries
+> OK / Close / Cancel / Don't Save / Dismiss. This is the escape hatch for the
+> otherwise-undismissable cross-process alert; a `run` plan's steps still can't
+> target it, so invoke this out-of-band (e.g. between plans in a suite runner).
+
+> **`menu` — discovering menu items (incl. disabled).** The `menu` action can only
+> invoke an **enabled** item; an item disabled at menu-open time (a command needing
+> a specific first-responder) can't be driven, and `dump-axtree` doesn't list menu
+> contents. `autopilot menu <app> --path View` (or `--path Edit Text` for a
+> submenu; omit `--path` for the top-level titles) lists **every** item with its
+> `enabled`, `hasSubmenu`, and `markChar` (the ✓ glyph when checked) — so you can
+> see what a menu holds and which items are currently invokable before writing a
+> `menu` step. It attaches like the other inspection commands (`--pid N` for a
+> specific process).
 
 > **Inspect vs. run — important.** `run` **launches a fresh instance** (a test
 > wants a clean app). The inspection commands (`dump-axtree`, `find`, `suggest`)

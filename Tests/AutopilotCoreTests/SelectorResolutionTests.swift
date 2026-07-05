@@ -77,6 +77,13 @@ import AutopilotCore
         #expect(try ActionEngine.parseChord("cmd+f12").flags.contains(.maskCommand))
     }
 
+    @Test func parsesInsertKey() throws {
+        // The Insert/Help key (kVK_Help == 114) — toggles overwrite mode in editors
+        // like medit. `help` is the AppKit alias for the same physical key.
+        #expect(try ActionEngine.parseChord("insert").virtualKey == 114)
+        #expect(try ActionEngine.parseChord("help").virtualKey == 114)
+    }
+
     @Test func parsesPlusKeyWithImplicitShift() throws {
         // The + key (Shift+=) is spelled `plus` since + is the chord separator.
         let chord = try ActionEngine.parseChord("cmd+plus")

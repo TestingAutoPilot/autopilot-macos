@@ -59,6 +59,27 @@ import Foundation
         #expect(r.stderr.contains("Cannot read plan"))
     }
 
+    @Test func runUnsupportedKeyExits4() throws {
+        // A keyPress chord with an unsupported final key gets exit 4 (distinct from
+        // 2 = invalid plan), so a harness can triage "key not supported yet".
+        let plan = """
+        {"schemaVersion":"1.1","name":"badkey","target":{"bundleId":"a"},
+         "steps":[{"id":"k","level":"happyPath","action":"keyPress",
+                   "target":{"role":"AXWindow"},"args":{"keys":"cmd+£"}}]}
+        """
+        let url = try tempFile(plan)
+        let r = try Self.run(["run", url.path])
+        #expect(r.code == 4)
+        #expect(r.stderr.lowercased().contains("key"))
+    }
+
+    @Test func runInvalidPlanExits2() throws {
+        // A malformed plan (not a key problem) stays exit 2.
+        let url = try tempFile(#"{"not":"a plan"}"#)
+        let r = try Self.run(["run", url.path])
+        #expect(r.code == 2)
+    }
+
     @Test func lintCleanPlanExits0() throws {
         let plan = """
         {"schemaVersion":"1.1","name":"ok","target":{"bundleId":"a"},

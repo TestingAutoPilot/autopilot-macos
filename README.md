@@ -12,21 +12,21 @@ Declarative macOS GUI automation via the Accessibility API — testing, document
 - Asserts element properties, pixel colors, region colors, and snapshot diffs for full visual coverage.
 - Captures screenshots at any step — full display, cropped to a named element, or an absolute region. Add `captureTarget: true` to any step for a zero-overhead visual log on every run. Use `target.attach: true` to drive an already-running app from a specific state, making AutoPilot equally useful for producing documentation screenshots as for automated testing.
 - Runs a whole directory of plans in one command and produces an aggregate report.
+- **Runs shell steps inline** with the `exec` action — stage a fixture, change a file on disk to trigger an app's file-watcher, or verify a Save wrote the right bytes — asserting on `stdout` / `stderr` / `exitCode`.
 - **Not just testing — declarative GUI automation.** A plan with no `assert` steps is a pure automation script: drive an app to *accomplish* a task, not just verify it. Combined with `target.attach: true` (drive an already-running app) and no LLM in the execution path, the same engine that runs your tests can automate repetitive Mac workflows deterministically. Testing is the flagship use; system automation is fully supported.
 - **Plans are human-readable JSON designed to be authored by AI agents.** Point an agent at the MCP server, ask it to write a plan for your app, and run it — no test framework knowledge required. (An agent can author an *automation* plan just as easily as a test plan.)
+- **A visual Cockpit GUI** (`AutopilotCockpit.app`) for people who prefer to see what they're doing: **Inspect** a target app's live accessibility tree and copy selectors, **Run** a plan with step-by-step pass/fail lights, and **Author** plans visually — all through the same engine as the CLI. See the [User Guide](docs/USER-GUIDE.md).
 
 ## Architecture
 
 The same JSON plan format runs on macOS (this repo), [iOS](https://github.com/jschwefel-CBB/autopilot-ios), and [Android](https://github.com/jschwefel-CBB/autopilot-android), each against a functionally-equivalent backend.
 
-AutoPilot is moving to a two-package split, with the platform-agnostic core extracted into its own reusable package:
+AutoPilot is a two-package split, with the platform-agnostic core in its own reusable package:
 
 | Package | Role |
 |---|---|
 | [`autopilot-core`](https://github.com/jschwefel-CBB/autopilot-core) | Platform-agnostic plan model, runner loop, and `AppDriver` protocol |
-| `autopilot-macos` (this repo) | macOS backend implementing `AppDriver` via the Accessibility API, screen capture, and vision matching |
-
-> **Status:** the `autopilot-core` package and the macOS `AppDriver` backend (`MacOSDriver`) are built and verified on the `v2-core-wire` branch; the shipping `main` is currently a single Swift package that bundles the same logic. The split lands in **v2.0.0**. Either way the behavior and plan format are identical.
+| `autopilot-macos` (this repo) | macOS backend implementing `AppDriver` via the Accessibility API, screen capture, and vision matching — plus the CLI, MCP server, and Cockpit GUI |
 
 ## Install
 
@@ -37,7 +37,7 @@ brew tap jschwefel-CBB/autopilot
 brew install autopilot
 ```
 
-After install, grant **Accessibility** permission to Terminal (or whichever app runs `autopilot`) in System Settings → Privacy & Security → Accessibility. Run `autopilot doctor` to verify.
+This installs the `autopilot` CLI, the `AutopilotMCP` server, and `AutopilotCockpit.app` (the visual GUI). After install, grant **Accessibility** permission to Terminal (or whichever app runs `autopilot`) in System Settings → Privacy & Security → Accessibility — and to `AutopilotCockpit.app` itself if you use the GUI. Run `autopilot doctor` to verify.
 
 ### Direct download
 
