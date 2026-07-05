@@ -39,10 +39,15 @@ cp "$MCP"        "$DIST/AutopilotMCP"
 # ship — internal/historical notes (gap analyses, review findings) stay in git.
 DOCS_STAGE="$DIST/docs"
 mkdir -p "$DOCS_STAGE"
-for d in README.md docs/MANUAL.md docs/AUTHORING.md docs/ROADMAP.md docs/CI.md; do
+for d in README.md docs/MANUAL.md docs/AUTHORING.md docs/USER-GUIDE.md docs/ROADMAP.md docs/CI.md; do
   [ -f "$d" ] || { echo "ERROR: expected doc not found: $d" >&2; exit 1; }
   cp "$d" "$DOCS_STAGE/"
 done
+# Ship the user-guide images so the guide's screenshots render offline.
+if [ -d docs/images ]; then
+  mkdir -p "$DOCS_STAGE/images"
+  cp docs/images/*.png "$DOCS_STAGE/images/" 2>/dev/null || true
+fi
 
 # The drag-source helper must ship as a proper .app so it launches as a real
 # foreground GUI app (only a foreground app can originate a cross-process drag).
