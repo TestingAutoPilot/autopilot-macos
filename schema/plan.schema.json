@@ -156,7 +156,11 @@
             "position",
             "size",
             "marked",
-            "count"
+            "count",
+            "clipboard",
+            "stdout",
+            "stderr",
+            "exitCode"
           ]
         },
         "op": {
@@ -195,7 +199,18 @@
         },
         "keys": {
           "type": "string",
-          "description": "Chord, e.g. cmd+s, cmd+,, cmd+plus."
+          "description": "Chord, e.g. cmd+s, cmd+,, cmd+plus, insert."
+        },
+        "command": {
+          "type": "string",
+          "description": "exec: a shell command string, run via /bin/sh -c. Use EITHER command OR argv, not both."
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "exec: [program, arg, ...] run directly with no shell. Use EITHER command OR argv, not both."
         },
         "menuPath": {
           "type": "array",
@@ -311,7 +326,8 @@
             "waitFor",
             "screenshot",
             "assert",
-            "wait"
+            "wait",
+            "exec"
           ]
         },
         "level": {
