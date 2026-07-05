@@ -4,10 +4,15 @@ import ArgumentParser
 import AutopilotCore
 import MacOSDriver
 
+/// The released AutoPilot version. Bumped in the same change set as a release tag
+/// (there is no separate VERSION file). Reported by `autopilot --version`.
+let autopilotVersion = "3.2.1"
+
 struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "autopilot",
         abstract: "Run a declarative GUI test plan against a macOS app.",
+        version: "AutoPilot \(autopilotVersion)",
         subcommands: [Run.self, Doctor.self, DumpAxtree.self, Lint.self, Find.self, Suggest.self, MenuList.self, DismissAlert.self, Docs.self],
         defaultSubcommand: Run.self
     )

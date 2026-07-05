@@ -53,6 +53,17 @@ import Foundation
         #expect(r.stdout.contains("lint") || r.stderr.contains("lint"))
     }
 
+    @Test func versionFlagPrintsVersionAndExits0() throws {
+        let r = try Self.run(["--version"])
+        #expect(r.code == 0)
+        // Prints the product name + a semver, and does NOT error as a missing
+        // plan path (the pre-fix behavior routed --version to the default `run`).
+        let out = r.stdout + r.stderr
+        #expect(out.contains("AutoPilot"))
+        #expect(out.range(of: #"\d+\.\d+\.\d+"#, options: .regularExpression) != nil)
+        #expect(!out.contains("Missing expected argument"))
+    }
+
     @Test func runBadPathExits2() throws {
         let r = try Self.run(["run", "/definitely/not/a/plan.json"])
         #expect(r.code == 2)
