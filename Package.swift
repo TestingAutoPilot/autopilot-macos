@@ -13,13 +13,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
-        // TEMPORARY local override so macOS builds against the unreleased core
-        // additions on feature/ap-feedback: MenuItemInfo/listMenu, readClipboard,
-        // AssertProperty.clipboard, RunObserver (cockpit), the exec step
-        // (runProcess/ProcessResult), and stdout/stderr/exitCode assert properties.
-        // MUST be reverted to the git dependency below at release (bump the version).
-        .package(path: "../autopilot-core"),
-        // .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.2.0"),
+        .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.2.0"),
     ],
     targets: [
         .target(
