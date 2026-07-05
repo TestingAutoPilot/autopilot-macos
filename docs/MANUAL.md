@@ -687,3 +687,5 @@ The MCP tools need the same Accessibility permission as the CLI. Run `autopilot 
 ### The Cockpit GUI
 
 AutoPilot ships **AutopilotCockpit.app**, a visual companion for the CLI with three modes — **Inspect** (browse a target app's live accessibility tree and copy selectors), **Run** (drive a plan and watch pass/fail light up step by step), and **Author** (build and edit a plan visually). It drives apps through the same engine as the CLI, so a plan built in the Cockpit runs identically under `autopilot run`. Grant it Accessibility permission the same way you grant the CLI. See the [User Guide](USER-GUIDE.md) for an illustrated tour.
+
+The Cockpit accepts two optional launch arguments so it can start in a known state (useful for scripting or demos): `--attach-pid <pid>` pre-attaches to that process, and `--mode <inspect|author|run>` starts on that mode. Both are ignored if absent.

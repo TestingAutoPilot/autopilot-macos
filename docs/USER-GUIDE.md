@@ -37,8 +37,8 @@ each interactive control; `dump-axtree` prints the full accessibility tree when 
 need the complete picture (use `--under-role AXWindow --omit-menubar` to trim it).
 
 ```bash
-autopilot suggest com.example.TestHostApp
-autopilot dump-axtree com.example.TestHostApp --under-role AXWindow --omit-menubar
+autopilot suggest com.autopilot.testhostapp
+autopilot dump-axtree com.autopilot.testhostapp --under-role AXWindow --omit-menubar
 ```
 
 ![autopilot suggest listing selectors for the fixture's controls](images/cli-suggest.png)
@@ -97,25 +97,30 @@ role, identifier, title, value, and frame — and copy a ready-to-use selector f
      the AX tree expanded with one node selected and its detail (role/identifier/
      value/frame) shown in the detail pane. Cockpit window only. -->
 
-### 2.2 Run — watch a plan execute
+### 2.2 Run — drive a plan and watch it live
 
-Run loads a plan and drives it, lighting each step ⬜ pending → ▶ running →
-✅ / ❌ as it goes. Selecting a step shows its screenshot and AX-dump artifacts.
+**Open Plan…** loads a `.json` plan; the **Level** picker sets the coverage tier
+(happyPath / integrationSuite / tryToBreakIt) and **Keep going** controls whether a
+failure stops the run. Press **Run** and each step lights up ⬜ pending → ▶ running →
+✅ / ❌ as it executes, with its screenshot and AX-dump artifacts shown when you
+select it.
 
-![Cockpit Run mode with step lights and the artifact pane](images/cockpit-run.png)
-<!-- SCREENSHOT: cockpit-run.png — Cockpit in Run mode after running a small fixture
-     plan, showing the step list with pass/fail lights and (if a step is selected)
-     the artifact pane. Cockpit window only. -->
+![Cockpit Run mode: the target attached, Open Plan / Level / Keep going / Run controls](images/cockpit-run.png)
+<!-- SCREENSHOT: cockpit-run.png — Cockpit in Run mode, attached to TestHostApp,
+     showing the Run controls (Open Plan…, Level, Keep going, Run). Cockpit window
+     only. -->
 
 ### 2.3 Author — build a plan visually
 
-Author edits a plan as a step list: add, reorder, and edit each step's action,
-selector, and assertion, then save valid JSON. Pair it with Inspect's
-"copy selector" to fill a step's target without hand-writing it.
+**New** starts a plan and **Add Step** appends steps; you edit each step's action,
+selector, and assertion, then **Save…** writes valid JSON. **Apply Selector from
+Inspect** fills a step's target from the node you selected in Inspect — the key
+cross-panel shortcut, so you never hand-write a selector.
 
-![Cockpit Author mode showing the editable step list](images/cockpit-author.png)
-<!-- SCREENSHOT: cockpit-author.png — Cockpit in Author mode with a plan loaded,
-     showing the editable step list and a step's form. Cockpit window only. -->
+![Cockpit Author mode: the New / Add Step / Apply Selector from Inspect / Save toolbar](images/cockpit-author.png)
+<!-- SCREENSHOT: cockpit-author.png — Cockpit in Author mode, attached to TestHostApp,
+     showing the authoring toolbar (Open…, New, Add Step, Apply Selector from Inspect,
+     Save…). Cockpit window only. -->
 
 ---
 

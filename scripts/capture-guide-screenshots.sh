@@ -20,7 +20,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 IMAGES="$ROOT/docs/images"
 FIXTURE="$ROOT/Fixtures/TestHostApp/.build/TestHostApp.app"
-FIXTURE_BID="com.example.TestHostApp"
+FIXTURE_BID="com.autopilot.testhostapp"
 mkdir -p "$IMAGES"
 
 log()  { printf '\033[1;34m[capture]\033[0m %s\n' "$*"; }
@@ -138,34 +138,31 @@ capture_cockpit() {
 PLIST
     /usr/bin/codesign --force --sign - "$app" 2>/dev/null || true
   fi
-  log "launching Cockpit + fixture…"
-  /usr/bin/open -n "$FIXTURE"; sleep 2
-  /usr/bin/open -n "$app"; sleep 3
-  local cpid; cpid="$(/usr/bin/pgrep -n -f AutopilotCockpit || true)"
-  [ -n "$cpid" ] || die "Cockpit did not launch (needs Accessibility grant for the launching process)"
+  # Launch the Cockpit BINARY directly as a child of this (AX-trusted) shell so it
+  # inherits Accessibility permission — `open -n` would detach it and it would show
+  # the "permission required" banner. `--attach-pid`/`--mode` put it in a known,
+  # populated state deterministically (no fragile UI-driving of its own controls).
+  local cockpit_bin="$app/Contents/MacOS/AutopilotCockpit"
 
-  # Overview + Inspect (default mode). We can't click the mode switcher headlessly
-  # here, so capture the modes AutoPilot itself can drive if needed; for now the
-  # overview/inspect shot is the default view. The Author/Run shots require driving
-  # the switcher — done below via `autopilot` against the Cockpit's own AX tree.
-  sleep 1
-  capture_window "$cpid" "$IMAGES/cockpit-overview.png"
-  capture_window "$cpid" "$IMAGES/cockpit-inspect.png"
-
-  # Switch modes by pressing the segmented control via AX, then capture.
-  switch_and_shoot() {
-    local title="$1" out="$2"
-    "$BIN/autopilot" run <(cat <<JSON
-{ "schemaVersion":"1.1","name":"cockpit $title","target":{"path":"$app","attach":true},
-  "defaults":{"timeoutMs":3000,"retryIntervalMs":100},
-  "steps":[ {"id":"tab","action":"click","level":"happyPath","target":{"role":"AXRadioButton","title":"$title"}} ] }
-JSON
-) >/dev/null 2>&1 || log "could not switch to $title via AX (capturing current view)"
-    sleep 1
+  # One launch per shot, each pre-attached to the fixture on the right mode.
+  shoot_mode() {
+    local mode="$1" out="$2"
+    cleanup; sleep 0.5
+    /usr/bin/open -n "$FIXTURE"; sleep 2
+    local fpid; fpid="$(/usr/bin/pgrep -n -f 'TestHostApp.app' || true)"
+    [ -n "$fpid" ] || die "fixture did not launch"
+    "$cockpit_bin" --attach-pid "$fpid" --mode "$mode" >/dev/null 2>&1 &
+    local cpid=$!
+    sleep 4
+    /usr/bin/pgrep -f AutopilotCockpit >/dev/null || die "Cockpit did not launch"
     capture_window "$cpid" "$out"
   }
-  switch_and_shoot "Run" "$IMAGES/cockpit-run.png"
-  switch_and_shoot "Author" "$IMAGES/cockpit-author.png"
+
+  log "capturing Cockpit windows (attached to the fixture)…"
+  shoot_mode inspect "$IMAGES/cockpit-overview.png"
+  /bin/cp "$IMAGES/cockpit-overview.png" "$IMAGES/cockpit-inspect.png"
+  shoot_mode run    "$IMAGES/cockpit-run.png"
+  shoot_mode author "$IMAGES/cockpit-author.png"
 }
 
 main() {
