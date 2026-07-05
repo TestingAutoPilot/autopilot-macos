@@ -9,14 +9,17 @@ let package = Package(
         .executable(name: "autopilot", targets: ["autopilot"]),
         .executable(name: "AutopilotMCP", targets: ["AutopilotMCP"]),
         .executable(name: "AutopilotDragSource", targets: ["AutopilotDragSource"]),
+        .executable(name: "AutopilotCockpit", targets: ["AutopilotCockpit"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
         // TEMPORARY local override so macOS builds against the unreleased core
-        // additions (MenuItemInfo/listMenu, readClipboard, AssertProperty.clipboard).
-        // MUST be reverted to the git dependency below before release.
+        // additions on feature/ap-feedback: MenuItemInfo/listMenu, readClipboard,
+        // AssertProperty.clipboard, RunObserver (cockpit), the exec step
+        // (runProcess/ProcessResult), and stdout/stderr/exitCode assert properties.
+        // MUST be reverted to the git dependency below at release (bump the version).
         .package(path: "../autopilot-core"),
-        // .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.1.0"),
+        // .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.2.0"),
     ],
     targets: [
         .target(
@@ -52,6 +55,14 @@ let package = Package(
             dependencies: ["AutopilotMCPKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        .executableTarget(
+            name: "AutopilotCockpit",
+            dependencies: [
+                "MacOSDriver",
+                .product(name: "AutopilotCore", package: "autopilot-core"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .testTarget(
             name: "AutopilotCoreTests",
             dependencies: [
@@ -63,6 +74,11 @@ let package = Package(
         .testTarget(
             name: "AutopilotMCPKitTests",
             dependencies: ["AutopilotMCPKit"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "AutopilotCockpitTests",
+            dependencies: ["AutopilotCockpit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
