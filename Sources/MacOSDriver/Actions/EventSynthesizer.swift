@@ -39,7 +39,9 @@ public enum EventSynthesizer {
     }
 
     /// Type a string as unicode keyboard events (works regardless of layout).
-    public static func type(_ text: String) {
+    /// `perCharDelayMs` > 0 pauses after each character, for demo-mode paced typing
+    /// (0 = as fast as possible, the normal test path).
+    public static func type(_ text: String, perCharDelayMs: Int = 0) {
         for ch in text {
             if let (code, shift) = KeyMap.keyCode(for: ch) {
                 // Virtual-key events — accepted by field editors (NSSearchField)
@@ -48,6 +50,7 @@ public enum EventSynthesizer {
             } else {
                 typeUnicode(ch)   // fallback for non-ANSI characters
             }
+            if perCharDelayMs > 0 { usleep(UInt32(perCharDelayMs) * 1000) }
         }
     }
 

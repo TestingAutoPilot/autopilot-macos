@@ -149,6 +149,20 @@ public struct MacOSDriver: AppDriver {
         Screenshot.captureMainDisplay(to: path, metadata: metadata)
     }
 
+    // MARK: Demo overlays (demo mode only)
+
+    public func showHighlight(_ element: any ElementHandle, holdMs: Int) {
+        // The driver owns geometry: read the element's real screen frame (top-left
+        // origin) and glow around it. If it has no frame (off-screen), do nothing —
+        // the demo step still passes (skip-don't-branch).
+        guard let box = element as? AXElementHandle, let frame = AXTree.frame(box.element) else { return }
+        DemoOverlay.highlight(axFrame: frame, holdMs: holdMs)
+    }
+
+    public func showCaption(_ text: String, position: String, holdMs: Int) {
+        DemoOverlay.caption(text: text, position: position, holdMs: holdMs)
+    }
+
     public func captureRegion(_ rect: Rect, to path: String, metadata: [String: String]) -> Bool {
         Screenshot.captureRegion(CGRect(x: rect.x, y: rect.y, width: rect.width, height: rect.height),
                                  to: path, metadata: metadata)

@@ -13,7 +13,11 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
-        .package(url: "https://github.com/jschwefel-CBB/autopilot-core", from: "3.2.0"),
+        // DEV OVERRIDE (feature/demo-and-builder): build against the local core
+        // checkout so this branch sees the unreleased schema-v1.2 demo APIs
+        // (RunOptions.demoMode, showHighlight/showCaption, highlight/caption/pace).
+        // Revert to a pinned version bump at release time (unified versioning).
+        .package(path: "../autopilot-core"),
     ],
     targets: [
         .target(

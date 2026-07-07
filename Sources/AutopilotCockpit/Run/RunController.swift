@@ -48,7 +48,7 @@ final class RunController: RunObserver {
     private var indexOfId: [String: Int] = [:]
 
     func run(_ loaded: LoadedPlan, driver: any AppDriver,
-             maxLevel: StepLevel?, keepGoing: Bool) {
+             maxLevel: StepLevel?, keepGoing: Bool, demoMode: Bool = false) {
         // Seed rows from the plan's steps, all pending.
         rows = loaded.plan.steps.map { StepRow(id: $0.id, state: .pending, durationMs: nil, message: nil) }
         indexOfId = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
@@ -58,7 +58,7 @@ final class RunController: RunObserver {
             .appendingPathComponent("cockpit-run-\(UUID().uuidString)")
         let options = RunOptions(keepGoing: keepGoing, artifactsDir: artifacts,
                                  planBaseDir: loaded.baseDir, maxLevel: maxLevel,
-                                 observer: self)
+                                 observer: self, demoMode: demoMode)
         let plan = loaded.plan
         // PlanRunner.run is blocking; run it off the main actor. Bind self to a
         // local so the detached closure captures an immutable reference (Swift 6

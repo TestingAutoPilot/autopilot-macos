@@ -14,7 +14,8 @@ struct AuthorView: View {
     /// a short, practical list is better UX than every raw case anyway.
     private let authorableActions: [Action] = [
         .click, .doubleClick, .rightClick, .press, .type, .keyPress, .setValue,
-        .menu, .assert, .waitFor, .screenshot, .launch, .terminate, .wait,
+        .scroll, .menu, .drag, .assert, .waitFor, .screenshot, .launch, .terminate,
+        .wait, .exec, .highlight, .caption, .pace,
     ]
 
     var body: some View {
@@ -22,17 +23,29 @@ struct AuthorView: View {
             controlBar
             Divider()
             if let editor {
-                List(selection: $selection) {
-                    ForEach(Array(editor.plan.steps.enumerated()), id: \.offset) { idx, step in
-                        HStack {
-                            Text(step.action.rawValue).bold()
-                            if let t = step.target { Text(selectorLabel(t)).foregroundStyle(.secondary) }
-                            Spacer()
-                            Text(step.level.rawValue).font(.caption).foregroundStyle(.secondary)
-                        }.tag(idx)
-                    }
-                    .onDelete { editor.deleteStep(at: $0) }
-                    .onMove { editor.moveStep(from: $0, to: $1) }
+                HSplitView {
+                    List(selection: $selection) {
+                        ForEach(Array(editor.plan.steps.enumerated()), id: \.offset) { idx, step in
+                            HStack {
+                                Text(step.action.rawValue).bold()
+                                if let t = step.target { Text(selectorLabel(t)).foregroundStyle(.secondary) }
+                                Spacer()
+                                Text(step.level.rawValue).font(.caption).foregroundStyle(.secondary)
+                            }.tag(idx)
+                        }
+                        .onDelete { editor.deleteStep(at: $0) }
+                        .onMove { editor.moveStep(from: $0, to: $1) }
+                    }.frame(minWidth: 260)
+                    // Per-step editor: the "full per-action visual editing" the Author
+                    // panel previously lacked. Binds to the selected step.
+                    Group {
+                        if let sel = selection {
+                            StepDetailView(editor: editor, index: sel)
+                        } else {
+                            ContentUnavailableView("No step selected", systemImage: "sidebar.right",
+                                description: Text("Select a step to edit its fields."))
+                        }
+                    }.frame(minWidth: 300)
                 }
                 if let status { Text(status).font(.callout).padding(6) }
             } else {
@@ -69,7 +82,7 @@ struct AuthorView: View {
     }
 
     private func emptyPlan() -> Plan {
-        Plan(schemaVersion: "1.1", name: "new-plan",
+        Plan(schemaVersion: "1.2", name: "new-plan",
              target: TargetApp(bundleId: "com.example"),
              steps: [])
     }
