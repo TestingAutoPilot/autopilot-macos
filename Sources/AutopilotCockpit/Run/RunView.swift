@@ -11,6 +11,7 @@ struct RunView: View {
     @State private var loadError: String?
     @State private var maxLevel: StepLevel = .tryToBreakIt
     @State private var keepGoing = true
+    @State private var demoMode = false
     @State private var selectedRow: String?
 
     var body: some View {
@@ -55,10 +56,13 @@ struct RunView: View {
                 Text("tryToBreakIt").tag(StepLevel.tryToBreakIt)
             }.frame(width: 220)
             Toggle("Keep going", isOn: $keepGoing)
+            Toggle("Demo mode", isOn: $demoMode)
+                .help("Render highlight/caption overlays and apply pace cadence, for a live demo or screencast. Off = a normal fast test run (demo steps are no-ops).")
             Spacer()
             Button {
                 guard let loaded else { return }
-                controller.run(loaded, driver: MacOSDriver(), maxLevel: maxLevel, keepGoing: keepGoing)
+                controller.run(loaded, driver: MacOSDriver(), maxLevel: maxLevel,
+                               keepGoing: keepGoing, demoMode: demoMode)
             } label: { Label("Run", systemImage: "play.fill") }
             .disabled(loaded == nil || controller.isRunning)
         }.padding(8)

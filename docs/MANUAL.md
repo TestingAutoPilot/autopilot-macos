@@ -36,7 +36,7 @@ AutoPilot is a declarative macOS GUI testing tool. You write a JSON file that de
 **What AutoPilot is not:**
 - Not a recorder. You write plans by hand (or with an agent). Recording produces brittle coordinate-based scripts; AutoPilot uses stable AX identifiers.
 - Not AI-driven at runtime. The LLM workflow (via the MCP server) happens at plan-authoring time, not during execution.
-- Not a web testing tool. AutoPilot targets macOS native apps only — it drives the Accessibility API, which is a macOS concept.
+- Not a web testing tool *on this backend*. The **macOS** driver targets native macOS apps only — it drives the Accessibility API, which is a macOS concept. AutoPilot as a whole **does** test the web: the same JSON plans run against a browser via the separate [`autopilot-web`](https://github.com/jschwefel-CBB/autopilot-web) backend (Playwright). Web-only steps skip on the native backends and native-only steps (menu, pixel asserts) skip on web — one plan, each backend runs what it can.
 
 ---
 

@@ -6,7 +6,7 @@ import MacOSDriver
 
 /// The released AutoPilot version. Bumped in the same change set as a release tag
 /// (there is no separate VERSION file). Reported by `autopilot --version`.
-let autopilotVersion = "3.2.1"
+let autopilotVersion = "3.5.0"
 
 struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -387,6 +387,9 @@ struct Run: ParsableCommand {
     @Flag(name: .long, help: "Print report.json to stdout instead of the human summary.")
     var json: Bool = false
 
+    @Flag(name: .long, help: "Demo mode: render highlight/caption overlays and apply pace cadence, for a live demo or screencast. Off = a normal fast test run (demo steps are no-ops).")
+    var demo: Bool = false
+
     func run() throws {
         let url = URL(fileURLWithPath: planPath)
         let artifactsURL = URL(fileURLWithPath: artifacts)
@@ -416,7 +419,7 @@ struct Run: ParsableCommand {
 
         let report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(
             keepGoing: keepGoing, artifactsDir: artifactsURL, planBaseDir: baseDir,
-            updateSnapshots: updateSnapshots))
+            updateSnapshots: updateSnapshots, demoMode: demo))
         let reporter = Reporter()
         if json {
             FileHandle.standardOutput.write(try reporter.json(report))
@@ -466,7 +469,7 @@ struct Run: ParsableCommand {
             do {
                 report = try PlanRunner(driver: MacOSDriver()).run(plan, options: RunOptions(
                     keepGoing: keepGoing, artifactsDir: artifactsURL, planBaseDir: baseDir,
-                    updateSnapshots: updateSnapshots))
+                    updateSnapshots: updateSnapshots, demoMode: demo))
             } catch {
                 report = Self.errorReport(plan.name, "run failed: \(error)")
             }

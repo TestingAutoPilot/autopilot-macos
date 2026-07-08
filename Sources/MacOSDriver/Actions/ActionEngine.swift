@@ -163,7 +163,9 @@ public struct ActionEngine {
                 EventSynthesizer.keyChord(virtualKey: 0, flags: .maskCommand)   // Cmd-A ('a' == 0)
                 EventSynthesizer.keyChord(virtualKey: 51, flags: [])            // Delete
             }
-            EventSynthesizer.type(text)
+            // In demo mode the runner sets args.typeMsPerChar so typing is watchable;
+            // 0/absent = type at full speed (the normal test path).
+            EventSynthesizer.type(text, perCharDelayMs: args?.typeMsPerChar ?? 0)
             if args?.commit == true {
                 // Press Return to fire the control's end-editing / target-action,
                 // so inline-edit fields (rename, etc.) actually commit the value.
@@ -182,8 +184,10 @@ public struct ActionEngine {
         case .scroll:
             EventSynthesizer.scroll(dx: Int32(args?.deltaX ?? 0), dy: Int32(args?.deltaY ?? 0))
         case .launch, .terminate, .waitFor, .screenshot, .assert, .assertPixel,
-             .assertRegion, .snapshot, .wait, .menu, .drag, .exec:
-            break // handled by PlanRunner, not here
+             .assertRegion, .snapshot, .wait, .menu, .drag, .exec,
+             .highlight, .caption, .pace:
+            break // handled by PlanRunner, not here (highlight/caption call the
+                  // driver's demo hooks; pace is runner state)
         }
     }
 }

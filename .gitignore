@@ -6,3 +6,4 @@ artifacts/
 
 # swift package edit override (local only)
 /Packages/
+.claude/

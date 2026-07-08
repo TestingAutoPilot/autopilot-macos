@@ -19,7 +19,7 @@ Declarative macOS GUI automation via the Accessibility API — testing, document
 
 ## Architecture
 
-The same JSON plan format runs on macOS (this repo), [iOS](https://github.com/jschwefel-CBB/autopilot-ios), and [Android](https://github.com/jschwefel-CBB/autopilot-android), each against a functionally-equivalent backend.
+The same JSON plan format runs on macOS (this repo), [iOS](https://github.com/jschwefel-CBB/autopilot-ios), [Android](https://github.com/jschwefel-CBB/autopilot-android), and the [web](https://github.com/jschwefel-CBB/autopilot-web) (Playwright), each against a functionally-equivalent backend. Steps with no equivalent on a given backend are skipped, not failed.
 
 AutoPilot is a two-package split, with the platform-agnostic core in its own reusable package:
 
