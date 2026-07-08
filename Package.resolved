@@ -1,6 +1,15 @@
 {
-  "originHash" : "045e28212f8516f94d28c58e99adf7f51c82a685c3ddf42460eac3214d852f46",
+  "originHash" : "d26e9093a37dbfde97ac7b9383cba80214bbde5d5e26a1b9b487dacb3d7e0909",
   "pins" : [
+    {
+      "identity" : "autopilot-core",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jschwefel-CBB/autopilot-core",
+      "state" : {
+        "revision" : "a5e8781d16b01d8c1cfced1de98d5d1a0a171519",
+        "version" : "3.5.0"
+      }
+    },
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",

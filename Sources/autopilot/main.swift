@@ -6,7 +6,7 @@ import MacOSDriver
 
 /// The released AutoPilot version. Bumped in the same change set as a release tag
 /// (there is no separate VERSION file). Reported by `autopilot --version`.
-let autopilotVersion = "3.2.1"
+let autopilotVersion = "3.5.0"
 
 struct Autopilot: ParsableCommand {
     static let configuration = CommandConfiguration(
