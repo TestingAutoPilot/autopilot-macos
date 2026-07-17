@@ -18,7 +18,7 @@ if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 TAP_REPO="${TAP_REPO:?TAP_REPO env var must point to homebrew-autopilot git URL}"
-OWNER="jschwefel-CBB"   # update if repo owner changes
+OWNER="TestingAutoPilot"   # update if repo owner changes
 URL="https://github.com/${OWNER}/autopilot-macos/releases/download/v${VERSION}/autopilot-${VERSION}-${ARCH}.tar.gz"
 
 TMPDIR="$(mktemp -d)"

@@ -2,7 +2,7 @@
 
 Declarative macOS GUI automation via the Accessibility API — testing, documentation screenshots, and repeatable app workflows. No LLM in the execution path.
 
-![CI](https://github.com/jschwefel-CBB/autopilot-macos/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/TestingAutoPilot/autopilot-macos/actions/workflows/ci.yml/badge.svg)
 
 ## What it does
 
@@ -19,13 +19,13 @@ Declarative macOS GUI automation via the Accessibility API — testing, document
 
 ## Architecture
 
-The same JSON plan format runs on macOS (this repo), [iOS](https://github.com/jschwefel-CBB/autopilot-ios), [Android](https://github.com/jschwefel-CBB/autopilot-android), and the [web](https://github.com/jschwefel-CBB/autopilot-web) (Playwright), each against a functionally-equivalent backend. Steps with no equivalent on a given backend are skipped, not failed.
+The same JSON plan format runs on macOS (this repo), [iOS](https://github.com/TestingAutoPilot/autopilot-ios), [Android](https://github.com/TestingAutoPilot/autopilot-android), and the [web](https://github.com/TestingAutoPilot/autopilot-web) (Playwright), each against a functionally-equivalent backend. Steps with no equivalent on a given backend are skipped, not failed.
 
 AutoPilot is a two-package split, with the platform-agnostic core in its own reusable package:
 
 | Package | Role |
 |---|---|
-| [`autopilot-core`](https://github.com/jschwefel-CBB/autopilot-core) | Platform-agnostic plan model, runner loop, and `AppDriver` protocol |
+| [`autopilot-core`](https://github.com/TestingAutoPilot/autopilot-core) | Platform-agnostic plan model, runner loop, and `AppDriver` protocol |
 | `autopilot-macos` (this repo) | macOS backend implementing `AppDriver` via the Accessibility API, screen capture, and vision matching — plus the CLI, MCP server, and Cockpit GUI |
 
 ## Install
@@ -33,7 +33,7 @@ AutoPilot is a two-package split, with the platform-agnostic core in its own reu
 ### Homebrew (recommended)
 
 ```bash
-brew tap jschwefel-CBB/autopilot
+brew tap TestingAutoPilot/autopilot
 brew install autopilot
 ```
 
@@ -41,7 +41,7 @@ This installs the `autopilot` CLI, the `AutopilotMCP` server, and `AutopilotCock
 
 ### Direct download
 
-Download the latest `autopilot-<version>-<arch>.tar.gz` from the [Releases page](https://github.com/jschwefel-CBB/autopilot-macos/releases), extract, and place both `autopilot` and `AutopilotMCP` somewhere on your `$PATH`:
+Download the latest `autopilot-<version>-<arch>.tar.gz` from the [Releases page](https://github.com/TestingAutoPilot/autopilot-macos/releases), extract, and place both `autopilot` and `AutopilotMCP` somewhere on your `$PATH`:
 
 ```bash
 tar -xzf autopilot-<version>-arm64.tar.gz
@@ -58,7 +58,7 @@ xattr -d com.apple.quarantine /usr/local/bin/AutopilotMCP
 ### Build from source
 
 ```bash
-git clone https://github.com/jschwefel-CBB/autopilot-macos.git
+git clone https://github.com/TestingAutoPilot/autopilot-macos.git
 cd autopilot-macos
 swift build -c release
 # Binaries land in .build/release/autopilot and .build/release/AutopilotMCP
@@ -169,11 +169,11 @@ The same JSON plan format runs across platforms:
 | Platform | Repo |
 |---|---|
 | macOS | this repo |
-| iOS | [`autopilot-ios`](https://github.com/jschwefel-CBB/autopilot-ios) |
-| Android | [`autopilot-android`](https://github.com/jschwefel-CBB/autopilot-android) |
+| iOS | [`autopilot-ios`](https://github.com/TestingAutoPilot/autopilot-ios) |
+| Android | [`autopilot-android`](https://github.com/TestingAutoPilot/autopilot-android) |
 
 ## Contributing / license
 
-Contributions are welcome. Open an issue or pull request against [jschwefel-CBB/autopilot-macos](https://github.com/jschwefel-CBB/autopilot-macos). For significant changes, open an issue first to discuss scope.
+Contributions are welcome. Open an issue or pull request against [TestingAutoPilot/autopilot-macos](https://github.com/TestingAutoPilot/autopilot-macos). For significant changes, open an issue first to discuss scope.
 
 Released under the MIT license.
